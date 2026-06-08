@@ -1,0 +1,28 @@
+═══════════════════════════════════════════════════════════════════════════════
+PACOTE COM A CORREÇÃO ESTRUTURAL DE AUTENTICAÇÃO APLICADA
+═══════════════════════════════════════════════════════════════════════════════
+
+O QUE FOI CORRIGIDO
+  Causa raiz: o frontend tinha DUAS fontes de token. ciclos.js lia o token do
+  Supa (HMAC legado), que é null no modo Supabase, então as chamadas de ciclos
+  saíam sem Authorization e levavam 401. Unificou-se tudo em window.Auth como
+  ÚNICA fonte oficial de sessão e token (Auth.getToken()).
+
+ARQUIVOS ALTERADOS (em public/js/)
+  - auth.js            → passa a ser a fonte única; suporta os 2 modos (Supabase
+                         e legado); novo getToken()/garantirLogin()/invalidarToken().
+  - supabase_store.js  → delega toda autenticação a window.Auth; _authHeaders async.
+  - ciclos.js          → _authHeaders usa Auth.getToken() (era Supa.tokenAtual()).
+  - auth_ui.js         → login/sessão/header/logout unificados em window.Auth.
+
+  Backend: NENHUMA alteração necessária (a cadeia de validação já era única).
+
+COMO RODAR
+  1. cd server
+  2. npm install            (node_modules NÃO vai no zip; reinstale aqui)
+  3. configure server/.env  (use server/.env.example como base)
+  4. npm start              (ou: node server.js)
+  5. abra http://localhost:3000
+
+Detalhes completos em: DIAGNOSTICO_E_CORRECAO_AUTH.md (na raiz do pacote).
+═══════════════════════════════════════════════════════════════════════════════

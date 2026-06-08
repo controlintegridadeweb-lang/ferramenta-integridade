@@ -1,0 +1,51 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Render Blueprint — Ferramenta de Avaliação de Integridade
+# ----------------------------------------------------------------------------
+# Como usar:
+#   1. Suba este repositório no GitHub.
+#   2. No Render: New → Blueprint → selecione o repositório.
+#   3. O Render lê este arquivo e cria o serviço automaticamente.
+#   4. Preencha no painel as variáveis marcadas com "sync: false" (segredos).
+#
+# As variáveis PORT e PUPPETEER_* NÃO ficam aqui:
+#   • PORT          → injetada automaticamente pelo Render.
+#   • PUPPETEER_*   → já definidas no Dockerfile (Chromium do sistema).
+# ════════════════════════════════════════════════════════════════════════════
+services:
+  - type: web
+    name: ferramenta-integridade
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free            # troque para "starter" se quiser sem hibernação
+    region: oregon        # opções: oregon, ohio, virginia, frankfurt, singapore
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # ── Segredos: preencher no painel do Render (não ficam no repositório) ──
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SHEETS_URL
+        sync: false
+
+      # ── Valores padrão (não-secretos) ──────────────────────────────────────
+      - key: SUPABASE_TABLE
+        value: anotacoes_analista
+      - key: RELATORIOS_BUCKET
+        value: relatorios
+      - key: SHEETS_AUTO_REFRESH_SEG
+        value: "0"
+      - key: SHEETS_CACHE_TTL_SEG
+        value: "60"
+      - key: SHEETS_KEEP_VERSIONS
+        value: "20"
+      - key: AUTH_PROTEGE_LEITURA
+        value: "false"
+      - key: AUTH_TOKEN_TTL_SEG
+        value: "28800"

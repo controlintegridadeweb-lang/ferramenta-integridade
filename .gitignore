@@ -1,0 +1,23 @@
+# ── Dependências ──────────────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ── Segredos / ambiente (NUNCA commitar) ──────────────────────────────────────
+.env
+**/.env
+.env.local
+**/.env.local
+!**/.env.example
+
+# ── Cache do Puppeteer (Chromium baixado) ─────────────────────────────────────
+.cache/
+**/.cache/
+
+# ── Cache local da planilha (gerado em runtime) ───────────────────────────────
+server/data/
+
+# ── Logs e temporários ────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
