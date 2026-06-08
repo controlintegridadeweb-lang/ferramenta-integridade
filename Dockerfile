@@ -2,8 +2,11 @@
 # Imagem de produção — Ferramenta de Avaliação de Integridade
 # Node + Chromium do sistema (para o Puppeteer gerar os PDFs com segurança).
 # Compatível com Render e Railway (deploy via Docker).
+#
+# Node 22: o @supabase/supabase-js exige WebSocket nativo (disponível só no
+# Node >= 22). Em Node 20 o createClient quebra no boot.
 # ════════════════════════════════════════════════════════════════════════════
-FROM node:20-slim
+FROM node:22-slim
 
 # Chromium e bibliotecas necessárias para o Puppeteer rodar em headless.
 RUN apt-get update && apt-get install -y --no-install-recommends \
