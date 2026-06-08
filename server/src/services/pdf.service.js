@@ -50,7 +50,16 @@ async function htmlParaPdf(html) {
   const browser = await _obterBrowser();
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // O HTML do relatório é autocontido (CSS inline, fontes do sistema, SVGs
+    // embutidos): não há recursos externos para aguardar. Usamos 'load' em vez
+    // de 'networkidle0' porque, com o Chromium do sistema (Docker), os eventos
+    // de rede ociosa nem sempre disparam e a navegação estourava o timeout.
+    await page.setContent(html, { waitUntil: 'load', timeout: 60000 });
+    // Garante que as fontes terminem de carregar (limite curto para não travar).
+    await Promise.race([
+      page.evaluate(() => document.fonts && document.fonts.ready),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]).catch(() => {});
     // emulateMediaType('print') garante que @media print e @page sejam aplicados.
     await page.emulateMediaType('print');
     return await page.pdf({
