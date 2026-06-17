@@ -170,19 +170,25 @@ const Ciclos = (() => {
 
     if (!_ativo) { mostrar(false); return; }
 
+    await atualizarStatus();
     const d = await dashboard();
     if (!d) { mostrar(false); return; }
     mostrar(true);
 
+    /* Contagens da fila alinhadas à planilha ATUAL: só obrigatórios ativos.
+       O dashboard do servidor conta todo registro PENDENTE no banco — inclusive
+       os que deixaram de ser obrigatórios após reclassificação ou correção de dados. */
+    const alinhado = _dashboardAlinhadoComPlanilha(d);
+
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('cicloPendentes', d.pendentes);
-    set('cicloEmAnalise', d.emAnalise);
-    set('cicloValidados', d.validados);
+    set('cicloPendentes', alinhado.pendentes);
+    set('cicloEmAnalise', alinhado.emAnalise);
+    set('cicloValidados', alinhado.validados);
     set('cicloFinalizados', d.finalizados);
-    set('btnGerarCount', d.validados);
+    set('btnGerarCount', alinhado.validados);
 
     const btn = document.getElementById('btnGerarRelatorio');
-    if (btn) btn.disabled = d.validados === 0;
+    if (btn) btn.disabled = alinhado.validados === 0;
 
     if (d.ultimoRelatorio) {
       const r = d.ultimoRelatorio;
@@ -193,6 +199,22 @@ const Ciclos = (() => {
       set('cicloUltimoNum', '—');
       set('cicloUltimoInfo', 'nenhum gerado ainda');
     }
+  }
+
+  /** Recalcula pendentes/em análise/validados cruzando banco × classificação atual. */
+  function _dashboardAlinhadoComPlanilha(d) {
+    const base = { pendentes: 0, emAnalise: 0, validados: 0 };
+    const data = (typeof State !== 'undefined' && State.allData) ? State.allData : [];
+    if (!data.length) return Object.assign(base, d);
+
+    data.forEach(r => {
+      if (!r || !r._uid || r._statusFinal !== 'avaliacao-obrigatoria') return;
+      const st = _statusCache[r._uid] && _statusCache[r._uid].status;
+      if (st === 'PENDENTE') base.pendentes++;
+      else if (st === 'EM_ANALISE') base.emAnalise++;
+      else if (st === 'VALIDADO') base.validados++;
+    });
+    return base;
   }
 
   /* ═════════════════════════════════════════════════════════════════════════
