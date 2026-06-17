@@ -4506,7 +4506,18 @@ body.auth-checking.auth-locked .auth-screen {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: linear-gradient(160deg, var(--brand-dark) 0%, var(--brand) 60%, var(--brand-light) 100%);
+  background-color: var(--brand-dark);
+  background-image:
+    linear-gradient(
+      160deg,
+      rgba(10, 107, 99, 0.91) 0%,
+      rgba(15, 147, 135, 0.88) 55%,
+      rgba(100, 160, 145, 0.85) 100%
+    ),
+    url('../images/auth-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   align-items: center;
   justify-content: center;
   padding: 20px;
@@ -4516,12 +4527,16 @@ body.auth-locked .auth-screen { display: flex; }
 .auth-card {
   width: 100%;
   max-width: 392px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: var(--radius-xl);
   box-shadow: 0 24px 70px rgba(10, 60, 55, .32), 0 2px 8px rgba(0,0,0,.08);
   padding: 38px 34px 28px;
   text-align: center;
   animation: authIn .4s var(--ease-out);
+  position: relative;
+  z-index: 1;
 }
 @keyframes authIn {
   from { opacity: 0; transform: translateY(14px) scale(.985); }
