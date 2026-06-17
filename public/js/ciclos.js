@@ -185,7 +185,7 @@ const Ciclos = (() => {
     set('cicloEmAnalise', alinhado.emAnalise);
     set('cicloValidados', alinhado.validados);
     set('cicloFinalizados', d.finalizados);
-    set('btnGerarCount', alinhado.validados);
+    set('btnGerarCount', `${alinhado.validados} validados`);
 
     const btn = document.getElementById('btnGerarRelatorio');
     if (btn) btn.disabled = alinhado.validados === 0;

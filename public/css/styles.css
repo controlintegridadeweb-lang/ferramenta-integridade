@@ -911,8 +911,8 @@ main {
 
 .step-num {
   width: 40px; height: 40px;
-  background: var(--brand);
-  color: #fff;
+  background-color: #ff751f;
+  color: #ffffff;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
