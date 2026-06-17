@@ -4427,12 +4427,11 @@ body.auth-checking.auth-locked .auth-screen {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background-color: rgba(10, 107, 99, 0.92);
+  background-color: #ffffff;
   background-image: url('../images/auth-bg.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-blend-mode: multiply;
   align-items: center;
   justify-content: center;
   padding: 20px;
