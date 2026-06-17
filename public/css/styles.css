@@ -700,8 +700,8 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--brand);
-  color: #fff;
+  background-color: #ff751f;
+  color: #ffffff;
   font-size: 12.5px;
   font-weight: 700;
   padding: 5px 14px;
@@ -716,7 +716,6 @@ main {
   background: var(--surface);
   border-color: var(--border);
 }
-.criterio-badge--art1 { background: var(--indigo); }
 
 .criterio-art1-intro {
   font-size: 13px;
@@ -833,7 +832,6 @@ main {
   background: var(--surface);
   border-color: var(--border);
 }
-.criterio-badge--art8 { background: var(--accent); }
 
 .criterio-art8-text {
   font-size: 13.5px;
