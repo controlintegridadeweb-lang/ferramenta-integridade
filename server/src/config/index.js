@@ -78,7 +78,9 @@ const config = {
   sheets: {
     url:         SHEETS_URL,
     refreshSeg:  SHEETS_REFRESH,
-    ativo:       isHttpUrl(SHEETS_URL),
+    // Placeholder do .env.example (ex.: SEU_ID) NÃO ativa Sheets —
+    // senão o front chama /api/sheets e o Google devolve 502/erro de rede.
+    ativo:       isHttpUrl(SHEETS_URL) && isValorReal(SHEETS_URL),
     cacheTtlSeg: SHEETS_CACHE_TTL,
     dataDir:     SHEETS_DATA_DIR,
     keepVersoes: SHEETS_KEEP_VERS,
