@@ -28,7 +28,15 @@ const Sheets = (() => {
       await parseWorkbook(buf, 'Google Sheets (tempo real)');
     } catch (err) {
       console.error('[Sheets]', err);
-      if (!silencioso) showToast(`Erro ao ler a planilha: ${err.message}`, 'error', 6000);
+      const msg = _mensagemSheets(err);
+      if (!silencioso) {
+        showToast(msg, 'error', 6000);
+        if (typeof DOM !== 'undefined' && DOM.sheetsStatus) {
+          DOM.sheetsStatus.innerHTML =
+            `<p class="sheets-erro">${msg}</p>` +
+            `<button type="button" class="btn-retry" onclick="App.carregarSheets()">Tentar de novo</button>`;
+        }
+      }
     } finally {
       if (!silencioso) hideLoading();
     }
@@ -48,6 +56,20 @@ const Sheets = (() => {
 
   function pararAutoRefresh() {
     if (_autoTimer) { clearInterval(_autoTimer); _autoTimer = null; }
+  }
+
+  function _mensagemSheets(err) {
+    const raw = String((err && err.message) || err || '');
+    if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+      return 'Não foi possível conectar ao servidor. Confira se o app está no ar e tente de novo.';
+    }
+    if (/http 5\d\d/i.test(raw) || /indispon/i.test(raw)) {
+      return 'A planilha não respondeu agora. Tente de novo em instantes.';
+    }
+    if (/não está configurad|SHEETS_URL/i.test(raw)) {
+      return 'A planilha ainda não está configurada. Peça ao administrador para habilitar a sincronização.';
+    }
+    return raw || 'Não foi possível ler a planilha. Tente de novo.';
   }
 
   return { carregar, configurarAutoRefresh, iniciarAutoRefresh, pararAutoRefresh };

@@ -21,11 +21,21 @@ function setupListeners() {
   // ── Modal ────────────────────────────────────────────────────────────────
   DOM.modalOverlay.addEventListener('click', closeModal);
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
+    const aberto = DOM.modalOverlay && DOM.modalOverlay.classList.contains('open');
+    if (!aberto) {
+      if (e.key === 'Escape') closeModal();
+      return;
+    }
+    if (e.key === 'Escape') { closeModal(); return; }
+    const tag = (e.target && e.target.tagName) || '';
+    const digitando = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (digitando) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); modalNext(); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); modalPrev(); }
   });
 
   // ── Acessibilidade: cards navegáveis por teclado ─────────────────────────
-  document.querySelectorAll('.summary-card').forEach(function(card) {
+  document.querySelectorAll('.summary-card, .inciso-card').forEach(function(card) {
     card.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
@@ -76,12 +86,15 @@ async function init() {
     if (btn) btn.disabled = true;
     if (DOM.sheetsStatus) {
       DOM.sheetsStatus.innerHTML =
-        '<p class="sheets-indisponivel">A planilha não está configurada no servidor. ' +
-        'Defina <strong>SHEETS_URL</strong> em <code>server/.env</code> para habilitar a sincronização.</p>';
+        '<p class="sheets-indisponivel">A planilha ainda não está configurada. ' +
+        'Peça ao administrador para habilitar a sincronização e tente de novo.</p>';
     }
   }
 
   if (window.AuthUI) AuthUI.atualizarHeader(saude);
+  if (typeof switchTab === 'function') switchTab('analise');
+  if (typeof updateExportVisibility === 'function') updateExportVisibility();
+  if (typeof updateSyncLabel === 'function') updateSyncLabel();
 }
 
 function sair() {
@@ -98,6 +111,11 @@ function carregarSheets() {
   }
 }
 
+function irParaPendentes() {
+  if (typeof switchTab === 'function') switchTab('analise');
+  if (typeof setActiveFilter === 'function') setActiveFilter('verificacao-humana');
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -107,12 +125,17 @@ document.addEventListener('DOMContentLoaded', init);
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /** Estado de visibilidade do painel normativo */
-let _normaPanelExpanded = true;
+let _normaPanelExpanded = false;
 
 /**
  * Alterna a visibilidade do conteúdo normativo (norma-box + steps).
  * Chamado via App.toggleNormaPanel() (onclick no botão no HTML).
  */
+function collapseNormaPanel() {
+  _normaPanelExpanded = true;
+  toggleNormaPanel();
+}
+
 function toggleNormaPanel() {
   const content = document.getElementById('normaContent');
   const btn     = document.getElementById('normaToggle');
@@ -123,13 +146,15 @@ function toggleNormaPanel() {
   _normaPanelExpanded = !_normaPanelExpanded;
 
   if (_normaPanelExpanded) {
+    content.hidden = false;
     content.style.display = '';
-    if (label) label.textContent = 'Recolher';
+    if (label) label.textContent = 'Recolher critérios';
     if (btn)   btn.setAttribute('aria-expanded', 'true');
     if (icon)  icon.style.transform = '';
   } else {
+    content.hidden = true;
     content.style.display = 'none';
-    if (label) label.textContent = 'Expandir';
+    if (label) label.textContent = 'Ver critérios do Decreto';
     if (btn)   btn.setAttribute('aria-expanded', 'false');
     if (icon)  icon.style.transform = 'rotate(180deg)';
   }
@@ -181,12 +206,15 @@ window.App = {
 
   // Navegação e filtros
   setActiveFilter:         setActiveFilter,
+  irParaPendentes:         irParaPendentes,
   clearFilters:            clearFilters,
   changePage:              changePage,
 
   // Modal
   openModal:               openModal,
   closeModal:              closeModal,
+  modalPrev:               modalPrev,
+  modalNext:               modalNext,
 
   // Exportação CSV / PDF
   exportCSV:               exportCSV,
@@ -195,6 +223,9 @@ window.App = {
   // Aba analítica
   switchTab:               switchTab,
   renderAnalytics:         renderAnalytics,
+  abrirFiltroAnalise:      abrirFiltroAnalise,
+  setDashPeriodo:          setDashPeriodo,
+  setDashPeriodoCustom:    setDashPeriodoCustom,
 
   // Fluxo de ciclos / relatórios
   gerarRelatorio:          gerarRelatorio,

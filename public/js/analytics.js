@@ -7,7 +7,7 @@
 /**
  * Ativa uma aba de navegação e exibe o painel correspondente.
  * Atualiza classes CSS e atributos ARIA (aria-selected) para acessibilidade.
- * @param {string} tabName — 'geral' | 'analise' | 'historico'
+ * @param {string} tabName — 'geral' | 'analise' | 'analytics' | 'historico'
  */
 function switchTab(tabName) {
   // Atualizar botões de aba
@@ -34,6 +34,14 @@ function switchTab(tabName) {
     }
   }
 
+  if (tabName === 'analytics') {
+    try {
+      if (typeof renderAnalytics === 'function') renderAnalytics();
+    } catch (err) {
+      console.error('[switchTab] Erro em renderAnalytics:', err);
+    }
+  }
+
   // Render do histórico de relatórios quando a aba é ativada
   if (tabName === 'historico') {
     try {
@@ -42,6 +50,9 @@ function switchTab(tabName) {
       console.error('[switchTab] Erro em renderHistorico:', err);
     }
   }
+
+  if (typeof updateExportVisibility === 'function') updateExportVisibility();
+  if (typeof updateSyncLabel === 'function') updateSyncLabel();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -124,12 +135,127 @@ function _buildAnalyticsData(data) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10);
 
+  const mesMap = {};
+  data.forEach(r => {
+    const iso = (typeof Classifier !== 'undefined' && Classifier.normalizeDateToISO)
+      ? Classifier.normalizeDateToISO(r.dt_public_edital)
+      : String(r.dt_public_edital || '').slice(0, 10);
+    if (!iso || iso.length < 7) return;
+    const key = iso.slice(0, 7);
+    mesMap[key] = (mesMap[key] || 0) + 1;
+  });
+  const porMes = Object.entries(mesMap).sort((a, b) => a[0].localeCompare(b[0]));
+
+  const anoMap = {};
+  const triMap = {};
+  data.forEach(r => {
+    const iso = _rowPubIso(r);
+    if (!iso || iso.length < 7) return;
+    const y = iso.slice(0, 4);
+    const mes = Number(iso.slice(5, 7));
+    const tri = Math.ceil(mes / 3);
+    anoMap[y] = (anoMap[y] || 0) + 1;
+    const tk = `${y}-T${tri}`;
+    triMap[tk] = (triMap[tk] || 0) + 1;
+  });
+  const porAno = Object.entries(anoMap).sort((a, b) => b[0].localeCompare(a[0]));
+  const porTrimestre = Object.entries(triMap).sort((a, b) => b[0].localeCompare(a[0]));
+
   return {
     total, enquadra, naoEnquad, naoEnquadArt1, dispensada, obrig, verif, sigiloso,
     artI, artII, artP1, artP2,
     art8_pend, art8_disp, art8_vig, art8_adit, art8_semdata,
-    modalMap, tipoMap, faixas, topUasg,
+    modalMap, tipoMap, faixas, topUasg, porMes, porAno, porTrimestre,
   };
+}
+
+let _dashPeriodo = 'todos';
+let _dashDe = '';
+let _dashAte = '';
+
+const DASH_PERIODOS = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'mes', label: 'Este mês' },
+  { id: 'trimestre', label: 'Este trimestre' },
+  { id: 'ano', label: 'Este ano' },
+  { id: '12m', label: '12 meses' },
+  { id: 'custom', label: 'Personalizado' },
+];
+
+function _rowPubIso(row) {
+  if (typeof Classifier !== 'undefined' && Classifier.normalizeDateToISO) {
+    return Classifier.normalizeDateToISO(row.dt_public_edital) || '';
+  }
+  return String(row.dt_public_edital || '').slice(0, 10);
+}
+
+function _isoYmd(y, m, d) {
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function _lastDay(y, m) {
+  return new Date(y, m, 0).getDate();
+}
+
+function _periodoRange(periodo, de, ate) {
+  const hoje = new Date();
+  const y = hoje.getFullYear();
+  const m = hoje.getMonth() + 1;
+  if (periodo === 'todos') return null;
+  if (periodo === 'mes') {
+    return { de: _isoYmd(y, m, 1), ate: _isoYmd(y, m, _lastDay(y, m)) };
+  }
+  if (periodo === 'trimestre') {
+    const start = Math.floor((m - 1) / 3) * 3 + 1;
+    const end = start + 2;
+    return { de: _isoYmd(y, start, 1), ate: _isoYmd(y, end, _lastDay(y, end)) };
+  }
+  if (periodo === 'ano') {
+    return { de: _isoYmd(y, 1, 1), ate: _isoYmd(y, 12, 31) };
+  }
+  if (periodo === '12m') {
+    const from = new Date(y, m - 12, 1);
+    return {
+      de: _isoYmd(from.getFullYear(), from.getMonth() + 1, 1),
+      ate: _isoYmd(y, m, _lastDay(y, m)),
+    };
+  }
+  if (periodo === 'custom') {
+    if (!de && !ate) return null;
+    return { de: de || '0000-01-01', ate: ate || '9999-12-31' };
+  }
+  return null;
+}
+
+function _filtrarPorPeriodo(data, periodo, de, ate) {
+  const range = _periodoRange(periodo, de, ate);
+  if (!range) return { rows: data, semData: 0, range: null };
+  let semData = 0;
+  const rows = data.filter(r => {
+    const iso = _rowPubIso(r);
+    if (!iso) { semData += 1; return false; }
+    return iso >= range.de && iso <= range.ate;
+  });
+  return { rows, semData, range };
+}
+
+function setDashPeriodo(periodo) {
+  _dashPeriodo = periodo || 'todos';
+  if (typeof renderAnalytics === 'function') renderAnalytics();
+}
+
+function setDashPeriodoCustom() {
+  const de = document.getElementById('dashDe');
+  const ate = document.getElementById('dashAte');
+  _dashPeriodo = 'custom';
+  _dashDe = de ? de.value : '';
+  _dashAte = ate ? ate.value : '';
+  if (typeof renderAnalytics === 'function') renderAnalytics();
+}
+
+function abrirFiltroAnalise(filter) {
+  if (typeof switchTab === 'function') switchTab('analise');
+  if (typeof setActiveFilter === 'function') setActiveFilter(filter || null);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -187,14 +313,14 @@ function _drawBar(canvasId, labels, values, colors) {
     // Valor em cima da barra
     if (values[i] > 0) {
       ctx.fillStyle = '#334155';
-      ctx.font      = 'bold 11px Inter, system-ui, sans-serif';
+      ctx.font      = '600 12px "Source Sans 3", "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(values[i], x + barW / 2, y - 4);
     }
 
     // Label abaixo da barra
     ctx.fillStyle = '#64748b';
-    ctx.font      = '10px Inter, system-ui, sans-serif';
+    ctx.font      = '12px "Source Sans 3", "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     const maxChars = Math.max(6, Math.floor(barW / 5.5));
     const shortLbl = lbl.length > maxChars ? lbl.slice(0, maxChars) + '…' : lbl;
@@ -232,7 +358,7 @@ function _drawPie(canvasId, labels, values, colors) {
   const total = values.reduce((a, b) => a + b, 0);
   if (total === 0) {
     ctx.fillStyle = '#94a3b8';
-    ctx.font      = '13px Inter, system-ui, sans-serif';
+    ctx.font      = '14px "Source Sans 3", "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Sem dados', W / 2, H / 2);
     return;
@@ -267,11 +393,11 @@ function _drawPie(canvasId, labels, values, colors) {
 
   // Texto central: total
   ctx.fillStyle = '#334155';
-  ctx.font      = 'bold 18px Inter, system-ui, sans-serif';
+  ctx.font      = '600 20px "Source Sans 3", "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(total, cx, cy + 3);
   ctx.fillStyle = '#64748b';
-  ctx.font      = '10px Inter, system-ui, sans-serif';
+  ctx.font      = '12px "Source Sans 3", "Segoe UI", sans-serif';
   ctx.fillText('total', cx, cy + 16);
 
   // Legenda à direita
@@ -285,7 +411,7 @@ function _drawPie(canvasId, labels, values, colors) {
     ctx.arc(legendX, legendY + 5, 5, 0, 2 * Math.PI);
     ctx.fill();
     ctx.fillStyle = '#334155';
-    ctx.font      = '10.5px Inter, system-ui, sans-serif';
+    ctx.font      = '12px "Source Sans 3", "Segoe UI", sans-serif';
     ctx.textAlign = 'left';
     const maxChars = 22;
     const shortLbl = lbl.length > maxChars ? lbl.slice(0, maxChars) + '…' : lbl;
@@ -302,35 +428,45 @@ function _drawPie(canvasId, labels, values, colors) {
  * Renderiza o painel "Análise de Dados" no DOM.
  * Chamado ao trocar para a aba analytics ou ao carregar novo dataset.
  */
+function _mesLabel(ym) {
+  const [y, m] = String(ym).split('-');
+  const nomes = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const i = Number(m) - 1;
+  return `${nomes[i] || m}/${String(y).slice(2)}`;
+}
+
 function renderAnalytics() {
   const panel = document.getElementById('panel-analytics');
   if (!panel) return;
 
-  const data = State.allData;
-  if (!data || data.length === 0) {
+  const allData = State.allData;
+  if (!allData || allData.length === 0) {
     panel.innerHTML = `
-      <div class="analytics-empty">
-        <div class="analytics-empty-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6"  y1="20" x2="6"  y2="14"/>
-          </svg>
+      <section class="dash-page">
+        <div class="analytics-empty">
+          <p class="geral-vazio-title">Nenhum dado ainda</p>
+          <p>Sincronize a planilha na aba Análise para ver o dashboard.</p>
+          <button type="button" class="btn-ir-analise" onclick="App.switchTab('analise')">Ir para Análise</button>
         </div>
-        <h3>Nenhum dado carregado</h3>
-        <p>Carregue uma planilha na aba <strong>Análise de Conformidade</strong> para visualizar o painel analítico.</p>
-      </div>`;
+      </section>`;
     return;
   }
 
+  const recorte = _filtrarPorPeriodo(allData, _dashPeriodo, _dashDe, _dashAte);
+  const data = recorte.rows;
   const d = _buildAnalyticsData(data);
 
   const fmt    = n => n.toLocaleString('pt-BR');
   const fmtBRL = v => v > 0
     ? `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
-  const pct    = (n, t) => t > 0
-    ? ` <span class="an-pct">${((n / t) * 100).toFixed(1)}%</span>` : '';
+  const pctNum = (n, t) => t > 0 ? `${((n / t) * 100).toFixed(1)}%` : '—';
+  const fmtData = iso => {
+    if (!iso || iso.length < 10) return '';
+    return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+  };
+  const periodoHint = recorte.range
+    ? `Publicação de ${fmtData(recorte.range.de)} a ${fmtData(recorte.range.ate)} · ${data.length.toLocaleString('pt-BR')} de ${allData.length.toLocaleString('pt-BR')}`
+    : `Todos os processos · ${allData.length.toLocaleString('pt-BR')}`;
 
   // Valor total estimado e valor sob avaliação obrigatória
   const valorTotal = data.reduce((acc, r) => {
@@ -345,90 +481,104 @@ function renderAnalytics() {
     }, 0);
 
   panel.innerHTML = `
+    <section class="dash-page">
+      <div class="dash-header">
+        <div class="dash-header-copy">
+          <h2 class="dash-title">Dashboard</h2>
+          <p class="dash-sub">Números da planilha por período de publicação. Clique em um card para abrir a lista.</p>
+        </div>
+        <button type="button" class="dash-header-btn" onclick="App.abrirFiltroAnalise('verificacao-humana')">
+          Trabalhar pendentes
+        </button>
+      </div>
 
-    <!-- ── CARDS KPI ─────────────────────────────────────────────────── -->
-    <div class="an-section-title">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-      Indicadores Gerais
-    </div>
-    <div class="an-kpi-grid">
-      <div class="an-kpi-card an-kpi-total">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Total de Processos</p>
+      <div class="dash-periodos">
+        <p class="modal-kicker">Período</p>
+        <div class="dash-period-btns" role="group" aria-label="Filtrar por período">
+          ${DASH_PERIODOS.map(p => `
+            <button type="button" class="dash-period-btn${_dashPeriodo === p.id ? ' is-active' : ''}"
+              onclick="App.setDashPeriodo('${p.id}')">${p.label}</button>
+          `).join('')}
+        </div>
+        ${_dashPeriodo === 'custom' ? `
+        <div class="dash-period-custom">
+          <label>De
+            <input type="date" id="dashDe" value="${escapeHtml(_dashDe)}" onchange="App.setDashPeriodoCustom()">
+          </label>
+          <label>Até
+            <input type="date" id="dashAte" value="${escapeHtml(_dashAte)}" onchange="App.setDashPeriodoCustom()">
+          </label>
+        </div>` : ''}
+        <p class="dash-period-hint">${periodoHint}${recorte.semData ? ` · ${recorte.semData.toLocaleString('pt-BR')} sem data` : ''}</p>
+      </div>
+
+      ${d.verif > 0 ? `
+      <div class="geral-fila dash-fila">
+        <div>
+          <p class="geral-fila-title"><strong>${fmt(d.verif)}</strong> em verificação pendente</p>
+          <p class="geral-fila-sub">Valor sigiloso ou Art. 8º ainda sem confirmação.</p>
+        </div>
+        <button type="button" class="btn-ir-analise" onclick="App.abrirFiltroAnalise('verificacao-humana')">Abrir fila</button>
+      </div>` : ''}
+
+      ${d.total === 0 ? `
+      <div class="analytics-empty">
+        <p class="geral-vazio-title">Nenhum processo neste período</p>
+        <p>Escolha outro recorte ou use personalizado.</p>
+      </div>
+      </section>` : `
+      <p class="modal-kicker">Situação</p>
+      <div class="an-kpi-grid">
+        <button type="button" class="an-kpi-card an-kpi-total" onclick="App.abrirFiltroAnalise(null)">
+          <p class="an-kpi-label">Processos</p>
           <strong class="an-kpi-value">${fmt(d.total)}</strong>
-          <p class="an-kpi-sub">Registros na planilha</p>
-        </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-obrig">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Avaliação Obrigatória</p>
+          <p class="an-kpi-sub">Todos os registros</p>
+        </button>
+        <button type="button" class="an-kpi-card an-kpi-obrig" onclick="App.abrirFiltroAnalise('avaliacao-obrigatoria')">
+          <p class="an-kpi-label">Obrigatória</p>
           <strong class="an-kpi-value">${fmt(d.obrig)}</strong>
-          <p class="an-kpi-sub">Enquadrados Art. 2º — não dispensados${pct(d.obrig, d.total)}</p>
-        </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-disp">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Dispensados Art. 8º</p>
+          <p class="an-kpi-sub">${pctNum(d.obrig, d.total)} do total</p>
+        </button>
+        <button type="button" class="an-kpi-card an-kpi-disp" onclick="App.abrirFiltroAnalise('dispensada')">
+          <p class="an-kpi-label">Dispensada</p>
           <strong class="an-kpi-value">${fmt(d.dispensada)}</strong>
-          <p class="an-kpi-sub">Analista confirmou evento anterior${pct(d.dispensada, d.total)}</p>
-        </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-verif">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Verificação Pendente</p>
+          <p class="an-kpi-sub">Art. 8º confirmado</p>
+        </button>
+        <button type="button" class="an-kpi-card an-kpi-verif" onclick="App.abrirFiltroAnalise('verificacao-humana')">
+          <p class="an-kpi-label">Pendente</p>
           <strong class="an-kpi-value">${fmt(d.verif)}</strong>
-          <p class="an-kpi-sub">Pendentes / dados incompletos${pct(d.verif, d.total)}</p>
-        </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-art2">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Enquadrados Art. 2º</p>
+          <p class="an-kpi-sub">Precisa do analista</p>
+        </button>
+        <button type="button" class="an-kpi-card an-kpi-art2" onclick="App.abrirFiltroAnalise('all-art2')">
+          <p class="an-kpi-label">Art. 2º</p>
           <strong class="an-kpi-value">${fmt(d.enquadra)}</strong>
-          <p class="an-kpi-sub">Atendem critérios de valor/modalidade${pct(d.enquadra, d.total)}</p>
-        </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-sig">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Orçamento Sigiloso</p>
+          <p class="an-kpi-sub">Enquadrados</p>
+        </button>
+        <button type="button" class="an-kpi-card an-kpi-sig" onclick="App.abrirFiltroAnalise('verificacao-humana')">
+          <p class="an-kpi-label">Sigiloso</p>
           <strong class="an-kpi-value">${fmt(d.sigiloso)}</strong>
-          <p class="an-kpi-sub">Valor não informado na planilha${pct(d.sigiloso, d.total)}</p>
-        </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-valor">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Valor Total Estimado</p>
+          <p class="an-kpi-sub">Sem valor na planilha</p>
+        </button>
+        <div class="an-kpi-card an-kpi-valor">
+          <p class="an-kpi-label">Valor total</p>
           <strong class="an-kpi-value an-kpi-value--sm">${fmtBRL(valorTotal)}</strong>
-          <p class="an-kpi-sub">Soma dos valores estimados</p>
+          <p class="an-kpi-sub">Estimado na planilha</p>
         </div>
-      </div>
-
-      <div class="an-kpi-card an-kpi-valor-obrig">
-        <div class="an-kpi-body">
-          <p class="an-kpi-label">Valor sob Avaliação</p>
+        <div class="an-kpi-card an-kpi-valor-obrig">
+          <p class="an-kpi-label">Valor obrigatório</p>
           <strong class="an-kpi-value an-kpi-value--sm">${fmtBRL(valorObrig)}</strong>
-          <p class="an-kpi-sub">Soma dos processos obrigatórios</p>
+          <p class="an-kpi-sub">Soma das obrigatórias</p>
         </div>
       </div>
-    </div>
 
     <!-- ── GRÁFICOS ROW 1 ─────────────────────────────────────────────── -->
     <div class="an-charts-row">
       <div class="an-chart-card">
-        <div class="an-chart-title">Status Final dos Processos</div>
+        <div class="an-chart-title">Status dos processos</div>
         <canvas id="chartStatus" class="an-canvas"></canvas>
       </div>
       <div class="an-chart-card">
-        <div class="an-chart-title">Enquadramento por Inciso do Art. 2º</div>
+        <div class="an-chart-title">Incisos do Art. 2º</div>
         <canvas id="chartArt2" class="an-canvas"></canvas>
       </div>
     </div>
@@ -436,11 +586,11 @@ function renderAnalytics() {
     <!-- ── GRÁFICOS ROW 2 ─────────────────────────────────────────────── -->
     <div class="an-charts-row">
       <div class="an-chart-card">
-        <div class="an-chart-title">Distribuição por Faixa de Valor</div>
+        <div class="an-chart-title">Faixa de valor</div>
         <canvas id="chartFaixa" class="an-canvas"></canvas>
       </div>
       <div class="an-chart-card">
-        <div class="an-chart-title">Situação do Art. 8º (Dispensa)</div>
+        <div class="an-chart-title">Art. 8º — dispensa</div>
         <canvas id="chartArt8" class="an-canvas"></canvas>
       </div>
     </div>
@@ -449,16 +599,10 @@ function renderAnalytics() {
     <div class="an-tables-row">
 
       <div class="an-table-card">
-        <div class="an-section-title an-section-title--sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/>
-          </svg>
-          Distribuição por Modalidade
-        </div>
+        <p class="modal-kicker">Modalidade</p>
         <div class="an-table-wrap">
           <table class="an-table">
-            <thead><tr><th>Modalidade</th><th>Qtd</th><th>%</th></tr></thead>
+            <thead><tr><th>Modalidade</th><th>Qtd.</th><th>%</th></tr></thead>
             <tbody>
               ${Object.entries(d.modalMap)
                 .sort((a, b) => b[1] - a[1])
@@ -469,9 +613,9 @@ function renderAnalytics() {
                   <td class="an-td-pct">
                     <div class="an-bar-mini">
                       <div class="an-bar-track">
-                        <div class="an-bar-mini-fill" style="width:${((n / d.total) * 100).toFixed(1)}%"></div>
+                        <div class="an-bar-mini-fill" style="width:${d.total ? ((n / d.total) * 100).toFixed(1) : 0}%"></div>
                       </div>
-                      <span>${((n / d.total) * 100).toFixed(1)}%</span>
+                      <span>${pctNum(n, d.total)}</span>
                     </div>
                   </td>
                 </tr>`).join('')}
@@ -481,16 +625,10 @@ function renderAnalytics() {
       </div>
 
       <div class="an-table-card">
-        <div class="an-section-title an-section-title--sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/>
-          </svg>
-          Distribuição por Tipo de Objeto
-        </div>
+        <p class="modal-kicker">Tipo de objeto</p>
         <div class="an-table-wrap">
           <table class="an-table">
-            <thead><tr><th>Tipo de Objeto</th><th>Qtd</th><th>%</th></tr></thead>
+            <thead><tr><th>Tipo</th><th>Qtd.</th><th>%</th></tr></thead>
             <tbody>
               ${Object.entries(d.tipoMap)
                 .sort((a, b) => b[1] - a[1])
@@ -501,9 +639,9 @@ function renderAnalytics() {
                   <td class="an-td-pct">
                     <div class="an-bar-mini">
                       <div class="an-bar-track">
-                        <div class="an-bar-mini-fill an-bar-mini-fill--green" style="width:${((n / d.total) * 100).toFixed(1)}%"></div>
+                        <div class="an-bar-mini-fill an-bar-mini-fill--green" style="width:${d.total ? ((n / d.total) * 100).toFixed(1) : 0}%"></div>
                       </div>
-                      <span>${((n / d.total) * 100).toFixed(1)}%</span>
+                      <span>${pctNum(n, d.total)}</span>
                     </div>
                   </td>
                 </tr>`).join('')}
@@ -514,22 +652,68 @@ function renderAnalytics() {
 
     </div>
 
-    <!-- ── TOP UASGs ──────────────────────────────────────────────────── -->
-    ${d.topUasg.length > 0 ? `
-    <div class="an-section-title">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
-        <line x1="8" y1="18" x2="21" y2="18"/>
-        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
-        <line x1="3" y1="18" x2="3.01" y2="18"/>
-      </svg>
-      Top ${d.topUasg.length} Órgãos — Processos Enquadrados no Art. 2º
+    <p class="modal-kicker">Por período</p>
+    <div class="an-tables-row">
+      <div class="an-table-card">
+        <p class="modal-kicker">Ano</p>
+        <div class="an-table-wrap">
+          <table class="an-table">
+            <thead><tr><th>Ano</th><th>Qtd.</th><th>%</th></tr></thead>
+            <tbody>
+              ${(d.porAno.length ? d.porAno : [['—', 0]]).map(([y, n]) => `
+              <tr>
+                <td>${escapeHtml(String(y))}</td>
+                <td class="an-td-num">${fmt(n)}</td>
+                <td class="an-td-pct">
+                  <div class="an-bar-mini">
+                    <div class="an-bar-track">
+                      <div class="an-bar-mini-fill" style="width:${d.total ? ((n / d.total) * 100).toFixed(1) : 0}%"></div>
+                    </div>
+                    <span>${pctNum(n, d.total)}</span>
+                  </div>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="an-table-card">
+        <p class="modal-kicker">Trimestre</p>
+        <div class="an-table-wrap">
+          <table class="an-table">
+            <thead><tr><th>Trimestre</th><th>Qtd.</th><th>%</th></tr></thead>
+            <tbody>
+              ${(d.porTrimestre.length ? d.porTrimestre : [['—', 0]]).map(([t, n]) => `
+              <tr>
+                <td>${escapeHtml(String(t).replace('-T', ' · T'))}</td>
+                <td class="an-td-num">${fmt(n)}</td>
+                <td class="an-td-pct">
+                  <div class="an-bar-mini">
+                    <div class="an-bar-track">
+                      <div class="an-bar-mini-fill an-bar-mini-fill--green" style="width:${d.total ? ((n / d.total) * 100).toFixed(1) : 0}%"></div>
+                    </div>
+                    <span>${pctNum(n, d.total)}</span>
+                  </div>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
+
+    ${d.porMes.length > 0 ? `
+    <div class="an-chart-card an-chart-card--wide">
+      <div class="an-chart-title">Publicações por mês</div>
+      <canvas id="chartMes" class="an-canvas"></canvas>
+    </div>` : ''}
+
+    ${d.topUasg.length > 0 ? `
+    <p class="modal-kicker">Órgãos com mais enquadrados no Art. 2º</p>
     <div class="an-table-card an-table-card--full">
       <div class="an-table-wrap">
         <table class="an-table">
-          <thead><tr><th>#</th><th>Órgão (UASG)</th><th>Processos Enquadrados</th><th>Participação</th></tr></thead>
+          <thead><tr><th>#</th><th>Órgão</th><th>Enquadrados</th><th>Participação</th></tr></thead>
           <tbody>
             ${d.topUasg.map(([u, n], i) => `
             <tr>
@@ -550,19 +734,23 @@ function renderAnalytics() {
         </table>
       </div>
     </div>` : ''}
-
+      </section>`}
   `;
+
+  if (d.total === 0) return;
+
+  const mesesChart = _dashPeriodo === 'todos' ? d.porMes.slice(-12) : d.porMes;
 
   // ── Desenhar gráficos após inserção no DOM ─────────────────────────────
   requestAnimationFrame(() => {
     _drawPie('chartStatus',
-      ['Avaliação Obrigatória', 'Dispensada', 'Verificação Pendente', 'Não Enquadrado', 'Excluído Art. 1º'],
+      ['Obrigatória', 'Dispensada', 'Pendente', 'Não enquadrado', 'Fora do Decreto'],
       [d.obrig, d.dispensada, d.verif, d.naoEnquad, d.naoEnquadArt1],
-      ['#dc2626', '#16a34a', '#e39361', '#64748b', '#0f9387']
+      ['#b84a42', '#0c7d73', '#e39361', '#64748b', '#0f9387']
     );
 
     _drawBar('chartArt2',
-      ['Art. 2º I\n(Obras/Eng.)', 'Art. 2º II\n(Serv./Compras)', 'Art. 2º §1\n(Especiais)', 'Art. 2º §2\n(Modalidade)'],
+      ['Inciso I', 'Inciso II', '§ 1º', '§ 2º'],
       [d.artI, d.artII, d.artP1, d.artP2],
       ['#0f9387', '#8cc6b3', '#0c7d73', '#e39361']
     );
@@ -574,9 +762,17 @@ function renderAnalytics() {
     );
 
     _drawBar('chartArt8',
-      ['Pend. Valid.', 'Dispensado', 'Vigente', 'Aditivo', 'Sem Data'],
+      ['Pendente', 'Dispensado', 'Vigente', 'Aditivo', 'Sem data'],
       [d.art8_pend, d.art8_disp, d.art8_vig, d.art8_adit, d.art8_semdata],
-      ['#e39361', '#16a34a', '#dc2626', '#0f9387', '#64748b']
+      ['#e39361', '#0c7d73', '#b84a42', '#0f9387', '#64748b']
     );
+
+    if (mesesChart.length) {
+      _drawBar('chartMes',
+        mesesChart.map(([ym]) => _mesLabel(ym)),
+        mesesChart.map(([, n]) => n),
+        mesesChart.map(() => '#0f9387')
+      );
+    }
   });
 }

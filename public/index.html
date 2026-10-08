@@ -17,7 +17,7 @@
   <!-- Estilos -->
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body class="auth-locked ui-minimal">
+<body class="auth-locked">
 
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────────────────────── -->
@@ -82,15 +82,20 @@
      BARRA DE ABAS + EXPORTAÇÃO — full-width fora do main
      ══════════════════════════════════════════════════════════════════════ -->
 <nav class="tab-nav" id="tabNav" role="tablist" aria-label="Painéis da ferramenta">
-    <button class="tab-btn active" id="tab-geral" data-tab="geral"
+    <button class="tab-btn" id="tab-geral" data-tab="geral"
             onclick="App.switchTab('geral')"
-            role="tab" aria-selected="true" aria-controls="panel-geral">
+            role="tab" aria-selected="false" aria-controls="panel-geral">
       Geral
     </button>
-    <button class="tab-btn" id="tab-analise" data-tab="analise"
+    <button class="tab-btn active" id="tab-analise" data-tab="analise"
             onclick="App.switchTab('analise')"
-            role="tab" aria-selected="false" aria-controls="panel-analise">
+            role="tab" aria-selected="true" aria-controls="panel-analise">
       Análise
+    </button>
+    <button class="tab-btn" id="tab-analytics" data-tab="analytics"
+            onclick="App.switchTab('analytics')"
+            role="tab" aria-selected="false" aria-controls="panel-analytics">
+      Dashboard
     </button>
     <button class="tab-btn" id="tab-historico" data-tab="historico"
             onclick="App.switchTab('historico')"
@@ -98,19 +103,23 @@
       Histórico
     </button>
     <div class="tab-nav-spacer"></div>
-    <button class="btn-export-nav btn-export-csv"
-            onclick="App.exportCSV()"
-            title="Exportar dados filtrados como CSV"
-            aria-label="Exportar CSV">
-      <span class="export-text">Exportar CSV</span>
-    </button>
-    <button class="btn-export-nav btn-export-pdf"
-            id="btnExportPdf"
-            onclick="App.exportPDF()"
-            title="Exportar relatório técnico completo em PDF"
-            aria-label="Exportar PDF">
-      <span class="export-text">Relatório PDF</span>
-    </button>
+    <div class="export-nav" id="exportNav" hidden>
+      <button class="btn-export-nav btn-export-csv"
+              onclick="App.exportCSV()"
+              title="Exportar dados filtrados como CSV"
+              aria-label="Exportar CSV">
+        <span class="export-text-full">Exportar CSV</span>
+        <span class="export-text-short">CSV</span>
+      </button>
+      <button class="btn-export-nav btn-export-pdf"
+              id="btnExportPdf"
+              onclick="App.exportPDF()"
+              title="Exportar relatório técnico completo em PDF"
+              aria-label="Exportar PDF">
+        <span class="export-text-full">Relatório PDF</span>
+        <span class="export-text-short">PDF</span>
+      </button>
+    </div>
 </nav>
 
 
@@ -120,13 +129,21 @@
 <main role="main">
 
   <!-- ══ PAINEL 1: GERAL — visão consolidada do ciclo atual (home) ════════ -->
-  <div id="panel-geral" class="tab-panel active" role="tabpanel" aria-labelledby="tab-geral">
+  <div id="panel-geral" class="tab-panel" role="tabpanel" aria-labelledby="tab-geral">
 
     <section class="geral-overview" aria-label="Visão geral do ciclo">
 
       <div class="geral-header">
-        <h2 class="geral-title">Visão geral do ciclo</h2>
-        <p class="geral-sub">Situação atual da operação de Avaliação de Integridade.</p>
+        <h2 class="geral-title">Resumo do dia</h2>
+        <p class="geral-sub">O que está pendente e o andamento do ciclo atual.</p>
+      </div>
+
+      <div class="geral-fila" id="geralFila" hidden>
+        <div>
+          <p class="geral-fila-title"><strong id="geralFilaCount">0</strong> processos em verificação pendente</p>
+          <p class="geral-fila-sub">Informe valor ou confirme o Art. 8º para tirar da fila.</p>
+        </div>
+        <button type="button" class="btn-ir-analise" onclick="App.irParaPendentes()">Trabalhar pendentes</button>
       </div>
 
       <!-- Cards consolidados do ciclo (preenchidos por ciclos.js) -->
@@ -162,8 +179,9 @@
 
       <!-- Estado vazio: nenhum ciclo ativo ainda -->
       <div class="geral-vazio" id="geralVazio">
-        <p>Nenhum ciclo ativo no momento. Acesse a aba <strong>Análise</strong> e sincronize a
-           planilha para iniciar a operação.</p>
+        <p class="geral-vazio-title">Nenhum dado ainda</p>
+        <p>Sincronize a planilha na aba Análise para ver o resumo do dia.</p>
+        <button type="button" class="btn-ir-analise" onclick="App.switchTab('analise')">Ir para Análise</button>
       </div>
 
       <!-- Última sincronização + atalho para a área operacional -->
@@ -171,6 +189,7 @@
         <div class="geral-sync">
           <span class="geral-sync-label">Última sincronização</span>
           <span class="geral-sync-valor" id="geralUltimaSync">—</span>
+          <span class="geral-sync-stale" id="geralSyncStale" hidden>Pode estar desatualizada — sincronize de novo.</span>
         </div>
         <button type="button" class="btn-ir-analise" onclick="App.switchTab('analise')">
           Ir para Análise
@@ -187,47 +206,47 @@
 
 
   <!-- ══ PAINEL 2: ANÁLISE — área operacional do ciclo atual ═════════════ -->
-  <div id="panel-analise" class="tab-panel" role="tabpanel" aria-labelledby="tab-analise">
+  <div id="panel-analise" class="tab-panel active" role="tabpanel" aria-labelledby="tab-analise">
 
 
-    <!-- ── WELCOME STATE (antes da sincronização) ─────────────────────────────── -->
+    <!-- ── WELCOME STATE (ação principal primeiro) ─────────────────────────────── -->
     <div class="welcome-state" id="welcomeState">
 
-      <!-- ── Banner hero azul ── -->
+      <section class="sheets-section" id="sheetsSection" aria-label="Sincronizar planilha">
+        <h2 class="sheets-title">Sincronize a planilha para começar</h2>
+        <p class="sheets-lead">Os contratos são classificados automaticamente (Art. 1º → Art. 2º → Art. 8º).</p>
+        <div class="sheets-row">
+          <button type="button" id="sheetsLoadBtn" class="btn-upload" onclick="App.carregarSheets()">
+            Sincronizar planilha
+          </button>
+        </div>
+        <p class="sheets-hint">Leitura em tempo real da planilha ALICE. As anotações do analista são salvas automaticamente.</p>
+        <div class="sheets-status" id="sheetsStatus" role="status" aria-live="polite"></div>
+      </section>
+
+      <div class="work-queue" id="workQueue" hidden>
+        <div>
+          <p class="work-queue-title" id="workQueueTitle">Há processos aguardando você</p>
+          <p class="work-queue-sub" id="workQueueText">Abra a fila de verificação pendente para continuar.</p>
+        </div>
+        <button type="button" class="btn-ir-analise" onclick="App.irParaPendentes()">Ver pendentes</button>
+      </div>
+
       <div class="welcome-hero">
 
-        <!-- Badge institucional -->
-        <div class="welcome-hero-badge">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-          Programa de Integridade e Compliance — PIC
-        </div>
-
-        <h2 class="welcome-hero-title">Ferramenta de Conformidade</h2>
-        <p class="welcome-hero-sub">
-            Verificação automatizada de conformidade com o <strong>Decreto Estadual nº 34.196/2024</strong>.
-            Aplica sequencialmente: <strong>Art. 1º</strong> (âmbito de aplicação) →
-            <strong>Art. 2º</strong> (obrigatoriedade da Avaliação de Integridade) →
-            <strong>Art. 8º</strong> (dispensa por anterioridade a 10/03/2025).
-          </p>
-
-        <!-- Botão colapsar/expandir -->
         <button class="norma-toggle" id="normaToggle"
                 onclick="App.toggleNormaPanel()"
-                title="Recolher/expandir referência normativa"
-                aria-expanded="true" aria-controls="normaContent"
-                style="display:none">
+                title="Ver ou recolher os critérios do Decreto"
+                aria-expanded="false" aria-controls="normaContent">
           <svg class="norma-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="18 15 12 9 6 15"/>
           </svg>
-          <span id="normaToggleLabel">Recolher</span>
+          <span id="normaToggleLabel">Ver critérios do Decreto</span>
         </button>
 
-        <div id="normaContent">
+        <div id="normaContent" hidden>
 
           <!-- ══ HERO BANNER EXPLICATIVO ════════════════════════════════════ -->
           <div class="criterios-hero-banner" aria-label="Como funciona a ferramenta">
@@ -345,7 +364,7 @@
               </div>
 
               <!-- Art. 2º -->
-              <div class="criterio-card">
+              <div class="criterio-card criterio-card--art2">
                 <div class="criterio-badge">
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
                      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -453,19 +472,6 @@
         </div><!-- /normaContent -->
       </div><!-- /welcome-hero -->
 
-
-      <!-- ── Leitura em tempo real do Google Sheets ── -->
-      <section class="sheets-section" id="sheetsSection" aria-label="Carregar do Google Sheets">
-        <div class="sheets-row">
-          <button type="button" id="sheetsLoadBtn" class="btn-upload" onclick="App.carregarSheets()">
-            Carregar / atualizar do Google Sheets
-          </button>
-        </div>
-        <p class="sheets-hint">Os dados são lidos em tempo real da planilha configurada no
-           servidor. As anotações do analista são salvas automaticamente.</p>
-        <div class="sheets-status" id="sheetsStatus" role="status" aria-live="polite"></div>
-      </section>
-
     </div><!-- /welcome-state -->
 
 
@@ -500,7 +506,7 @@
             </div>
             <div class="summary-count summary-count--danger" id="countAvalObrig2">0</div>
             <div class="summary-title summary-title--danger">Avaliação obrigatória</div>
-            <div class="summary-desc">Enquadrados no Art. 2º — avaliação obrigatória (pode ocorrer antes da assinatura, durante a vigência ou a qualquer tempo — Art. 1º, §2º).</div>
+            <div class="summary-desc">Enquadrados no Art. 2º. Clique para filtrar.</div>
             <div class="summary-bar summary-bar--danger"></div>
             <div class="active-indicator" style="color:var(--danger)"></div>
           </article>
@@ -515,7 +521,7 @@
             </div>
             <div class="summary-count summary-count--warning" id="countVerificacao2">0</div>
             <div class="summary-title summary-title--warning">Verificação Pendente</div>
-            <div class="summary-desc">Valor sigiloso ou validação Art. 8º pendente — informe o valor estimado ou confirme o evento relevante anterior a 10/03/2025.</div>
+            <div class="summary-desc">Falta valor ou confirmação do Art. 8º. Clique para filtrar.</div>
             <div class="summary-bar summary-bar--warning"></div>
             <div class="active-indicator" style="color:var(--warning)"></div>
           </article>
@@ -530,7 +536,7 @@
             </div>
             <div class="summary-count summary-count--muted" id="countNaoEnquadrado">0</div>
             <div class="summary-title summary-title--muted">Fora do escopo</div>
-            <div class="summary-desc">Fora do escopo do Art. 2º — não atingem os limiares de valor ou modalidade; ou órgão excluído pelo Art. 1º (empresa pública/economia mista).</div>
+            <div class="summary-desc">Fora do Art. 2º ou órgão excluído pelo Art. 1º. Clique para filtrar.</div>
             <div class="summary-bar summary-bar--muted"></div>
             <div class="active-indicator" style="color:var(--muted)"></div>
           </article>
@@ -545,7 +551,7 @@
             </div>
             <div class="summary-count summary-count--success" id="countDispensada">0</div>
             <div class="summary-title summary-title--success">Dispensados</div>
-            <div class="summary-desc">Enquadra no Art. 2º, mas dispensada pelo Art. 8º — contratação anterior a 10/03/2025.</div>
+            <div class="summary-desc">Enquadra no Art. 2º, mas dispensado pelo Art. 8º. Clique para filtrar.</div>
             <div class="summary-bar summary-bar--success"></div>
             <div class="active-indicator" style="color:var(--success)"></div>
           </article>
@@ -565,158 +571,88 @@
           <article class="inciso-card" data-filter="art2-I"
                    onclick="App.setActiveFilter('art2-I')"
                    role="button" tabindex="0">
-            <div class="inciso-card-header">
-              <div class="inciso-icon inciso-icon--I">
-                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/>
-                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
+            <p class="inciso-kicker">Inciso I</p>
+            <h3 class="inciso-nome">Obras e Engenharia</h3>
+            <div class="inciso-metric">
+              <span class="inciso-count" id="countI">0</span>
+              <span class="inciso-metric-label">contratos</span>
+            </div>
+            <dl class="inciso-facts">
+              <div>
+                <dt>Limiar</dt>
+                <dd>R$ 35 milhões</dd>
               </div>
-              <div class="inciso-meta">
-                <span class="inciso-tag">ART. 2º, INCISO I</span>
-                <strong class="inciso-nome">Obras e Engenharia</strong>
+              <div>
+                <dt>Modalidade</dt>
+                <dd>Concorrência / RDC</dd>
               </div>
-              <div class="inciso-count inciso-count--I" id="countI">0</div>
-            </div>
-            <div class="inciso-tags-row">
-              <span class="inciso-chip inciso-chip--val">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-                </svg>
-                Acima de R$ 35M
-              </span>
-              <span class="inciso-chip">Concorrência / RDC</span>
-            </div>
-            <div class="inciso-footer">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-              Avaliações pendentes
-              <span class="inciso-footer-count" id="countI2">— contratos</span>
-            </div>
-            <div class="active-indicator" style="color:var(--danger)"></div>
+            </dl>
           </article>
 
           <!-- Art. 2º, Inciso II -->
           <article class="inciso-card" data-filter="art2-II"
                    onclick="App.setActiveFilter('art2-II')"
                    role="button" tabindex="0">
-            <div class="inciso-card-header">
-              <div class="inciso-icon inciso-icon--II">
-                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <path d="M16 10a4 4 0 0 1-8 0"/>
-                </svg>
+            <p class="inciso-kicker">Inciso II</p>
+            <h3 class="inciso-nome">Serviços e Compras</h3>
+            <div class="inciso-metric">
+              <span class="inciso-count" id="countII">0</span>
+              <span class="inciso-metric-label">contratos</span>
+            </div>
+            <dl class="inciso-facts">
+              <div>
+                <dt>Limiar</dt>
+                <dd>R$ 25 milhões</dd>
               </div>
-              <div class="inciso-meta">
-                <span class="inciso-tag inciso-tag--II">ART. 2º, INCISO II</span>
-                <strong class="inciso-nome">Serviços e Compras</strong>
+              <div>
+                <dt>Modalidade</dt>
+                <dd>Pregão / Concorrência</dd>
               </div>
-              <div class="inciso-count inciso-count--II" id="countII">0</div>
-            </div>
-            <div class="inciso-tags-row">
-              <span class="inciso-chip inciso-chip--val-II">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-                </svg>
-                Acima de R$ 25M
-              </span>
-              <span class="inciso-chip">Pregão / Concorrência</span>
-            </div>
-            <div class="inciso-footer">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-              Avaliações pendentes
-              <span class="inciso-footer-count" id="countII2">— contratos</span>
-            </div>
-            <div class="active-indicator" style="color:var(--warning)"></div>
+            </dl>
           </article>
 
           <!-- Art. 2º, §1º -->
           <article class="inciso-card" data-filter="art2-p1"
                    onclick="App.setActiveFilter('art2-p1')"
                    role="button" tabindex="0">
-            <div class="inciso-card-header">
-              <div class="inciso-icon inciso-icon--p1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                </svg>
+            <p class="inciso-kicker">Parágrafo 1º</p>
+            <h3 class="inciso-nome">Objetos Especiais</h3>
+            <div class="inciso-metric">
+              <span class="inciso-count" id="countP1">0</span>
+              <span class="inciso-metric-label">contratos</span>
+            </div>
+            <dl class="inciso-facts">
+              <div>
+                <dt>Limiar</dt>
+                <dd>R$ 15 milhões</dd>
               </div>
-              <div class="inciso-meta">
-                <span class="inciso-tag inciso-tag--p1">ART. 2º, §1º</span>
-                <strong class="inciso-nome">Objetos Especiais</strong>
+              <div>
+                <dt>Objeto</dt>
+                <dd>Hospitalar, merenda, prisional</dd>
               </div>
-              <div class="inciso-count inciso-count--p1" id="countP1">0</div>
-            </div>
-            <div class="inciso-tags-row">
-              <span class="inciso-chip inciso-chip--val-p1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-                </svg>
-                Acima de R$ 15M
-              </span>
-              <span class="inciso-chip">Hospitalar / Merenda / Prisional</span>
-            </div>
-            <div class="inciso-footer">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-              Avaliações pendentes
-              <span class="inciso-footer-count" id="countP12">— contratos</span>
-            </div>
-            <div class="active-indicator" style="color:var(--info)"></div>
+            </dl>
           </article>
 
           <!-- Art. 2º, §2º -->
           <article class="inciso-card" data-filter="art2-p2"
                    onclick="App.setActiveFilter('art2-p2')"
                    role="button" tabindex="0">
-            <div class="inciso-card-header">
-              <div class="inciso-icon inciso-icon--p2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
+            <p class="inciso-kicker">Parágrafo 2º</p>
+            <h3 class="inciso-nome">Modalidade Especial</h3>
+            <div class="inciso-metric">
+              <span class="inciso-count" id="countP2">0</span>
+              <span class="inciso-metric-label">contratos</span>
+            </div>
+            <dl class="inciso-facts">
+              <div>
+                <dt>Limiar</dt>
+                <dd>R$ 15 milhões</dd>
               </div>
-              <div class="inciso-meta">
-                <span class="inciso-tag inciso-tag--p2">ART. 2º, §2º</span>
-                <strong class="inciso-nome">Modalidade Especial</strong>
+              <div>
+                <dt>Tipo</dt>
+                <dd>Dispensa, inexigibilidade, PPP</dd>
               </div>
-              <div class="inciso-count inciso-count--p2" id="countP2">0</div>
-            </div>
-            <div class="inciso-tags-row">
-              <span class="inciso-chip" style="background:var(--purple-bg);color:var(--purple);border-color:var(--indigo-bd)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                     fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-                </svg>
-                Acima de R$ 15M
-              </span>
-              <span class="inciso-chip">Dispensa / Inexigibilidade / PPP</span>
-            </div>
-            <div class="inciso-footer">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-              Avaliações pendentes
-              <span class="inciso-footer-count" id="countP22">— contratos</span>
-            </div>
-            <div class="active-indicator" style="color:var(--purple)"></div>
+            </dl>
           </article>
 
         </div><!-- /inciso-grid -->
@@ -725,111 +661,71 @@
 
       <!-- ═══ FILTROS ════════════════════════════════════════════════════ -->
       <div class="filters-section">
-        <div class="section-label-row">Filtro</div>
+        <div class="filter-chip-bar" id="filterChipBar" hidden>
+          <span class="filter-chip-kicker">Filtro ativo</span>
+          <button type="button" class="filter-chip" id="filterChip" onclick="App.setActiveFilter(null)" title="Remover filtro">
+            <span id="filterChipLabel"></span>
+            <span class="filter-chip-x" aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div class="section-label-row">Filtros</div>
         <div class="filters-bar" id="filtersBar">
 
-        <!-- Busca por texto -->
-        <div class="filter-search-wrap">
-          <svg class="filter-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" id="searchInput" placeholder="Buscar por número, objeto ou UASG…"
-                 aria-label="Busca por texto">
-        </div>
-
-        <!-- Status -->
-        <div class="filter-group">
-          <label for="filterStatus">
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            Status
-          </label>
-          <select id="filterStatus">
-            <option value="">Todos os status</option>
-            <option value="avaliacao-obrigatoria">Avaliação Obrigatória</option>
-            <option value="dispensada">Dispensada (Art. 8º)</option>
-            <option value="verificacao-humana">Verificação Pendente</option>
-            <option value="nao-enquadrado">Não Enquadrado (Art. 2º)</option>
-            <option value="nao-enquadrado-art1">Não Enquadrado — Órgão excluído (Art. 1º)</option>
-          </select>
-        </div>
-
-        <!-- Modalidade -->
-        <div class="filter-group">
-          <label for="filterModalidade">
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            </svg>
-            Modalidade
-          </label>
-          <select id="filterModalidade">
-            <option value="">Todas as modalidades</option>
-          </select>
-        </div>
-
-        <!-- Tipo de Objeto -->
-        <div class="filter-group">
-          <label for="filterTipoObj">
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-            </svg>
-            Tipo Objeto
-          </label>
-          <select id="filterTipoObj">
-            <option value="">Todos os tipos</option>
-          </select>
-        </div>
-
-        <!-- UASG -->
-        <div class="filter-group">
-          <label for="filterUasg">
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-            </svg>
-            UASG
-          </label>
-          <select id="filterUasg">
-            <option value="">Todas as UASGs</option>
-          </select>
-        </div>
-
-        <!-- Range de valor -->
-        <div class="filter-group filter-group--range">
-          <label>
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10"/>
-              <line x1="12" y1="20" x2="12" y2="4"/>
-              <line x1="6"  y1="20" x2="6"  y2="14"/>
-            </svg>
-            Valor Est. (R$ M)
-          </label>
-          <div class="range-inputs">
-            <input type="number" id="filterValorMin" placeholder="Mín" min="0" step="1" aria-label="Valor mínimo em milhões">
-            <span>—</span>
-            <input type="number" id="filterValorMax" placeholder="Máx" min="0" step="1" aria-label="Valor máximo em milhões">
+          <div class="filter-group filter-group--search">
+            <label for="searchInput">Busca</label>
+            <input type="text" id="searchInput" placeholder="Número, objeto ou UASG"
+                   aria-label="Busca por texto">
           </div>
-        </div>
 
-        <!-- IDs ocultos para compatibilidade com ui.js / state.js -->
-        <span id="countAll" style="display:none"></span>
+          <div class="filter-group">
+            <label for="filterStatus">Status</label>
+            <select id="filterStatus">
+              <option value="">Todos</option>
+              <option value="avaliacao-obrigatoria">Avaliação obrigatória</option>
+              <option value="dispensada">Dispensada (Art. 8º)</option>
+              <option value="verificacao-humana">Verificação pendente</option>
+              <option value="nao-enquadrado">Não enquadrado (Art. 2º)</option>
+              <option value="nao-enquadrado-art1">Órgão excluído (Art. 1º)</option>
+            </select>
+          </div>
 
-        <!-- Botão limpar -->
-        <button class="btn-clear-filters" id="btnClearFilters" onclick="App.clearFilters()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-          Limpar filtros
-        </button>
+          <div class="filter-group">
+            <label for="filterModalidade">Modalidade</label>
+            <select id="filterModalidade">
+              <option value="">Todas</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="filterTipoObj">Tipo de objeto</label>
+            <select id="filterTipoObj">
+              <option value="">Todos</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="filterUasg">UASG</label>
+            <select id="filterUasg">
+              <option value="">Todas</option>
+            </select>
+          </div>
+
+          <div class="filter-group filter-group--range">
+            <label for="filterValorMin">Valor (R$ milhões)</label>
+            <div class="range-inputs">
+              <input type="number" id="filterValorMin" placeholder="Mínimo" min="0" step="1" aria-label="Valor mínimo em milhões">
+              <input type="number" id="filterValorMax" placeholder="Máximo" min="0" step="1" aria-label="Valor máximo em milhões">
+            </div>
+          </div>
+
+          <div class="filter-group filter-group--action">
+            <span class="filter-action-spacer" aria-hidden="true"></span>
+            <button type="button" class="btn-clear-filters" id="btnClearFilters" onclick="App.clearFilters()">
+              Limpar
+            </button>
+          </div>
+
+          <span id="countAll" style="display:none"></span>
 
         </div><!-- /filters-bar -->
       </div><!-- /filters-section -->
@@ -839,10 +735,13 @@
       <div class="table-section" id="tableSection">
 
         <!-- emptyState legado: gerenciado pelo ui.js -->
-        <div id="emptyState" style="display:none"></div>
+        <div id="emptyState" class="empty-state" style="display:none"></div>
 
         <div class="table-toolbar">
-          <span class="result-count" id="resultCount"></span>
+          <div class="table-toolbar-copy">
+            <span class="result-count" id="resultCount"></span>
+            <span class="table-hint">Clique na linha para abrir o processo</span>
+          </div>
           <!-- btnExport legado: compatibilidade com ui.js -->
           <button id="btnExport" class="btn-export" style="display:none" disabled></button>
         </div>
@@ -851,29 +750,18 @@
           <table id="mainTable" aria-label="Lista de processos licitatórios">
             <thead>
               <tr>
-                <th>Edital / Processo</th>
-                <th>UASG / Órgão</th>
-                <th>Modalidade</th>
-                <th>Tipo de Objeto</th>
-                <th>Data Publicação</th>
-                <th>Valor Estimado</th>
-                <th>Status / Enquadramento</th>
-                <th>Objeto</th>
-                <th>Ação</th>
+                <th>Edital</th>
+                <th>Órgão</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody id="tableBody">
               <tr>
-                <td colspan="9">
+                <td colspan="5">
                   <div class="empty-state">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24"
-                         fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-                         style="opacity:.25; color:var(--brand)">
-                      <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-                      <polyline points="2 17 12 22 22 17"/>
-                      <polyline points="2 12 12 17 22 12"/>
-                    </svg>
-                    <p>Nenhum dado carregado. Sincronize com o Google Sheets para começar.</p>
+                    <p>Sincronize a planilha acima para começar a análise.</p>
                   </div>
                 </td>
               </tr>
@@ -892,6 +780,11 @@
     </div><!-- /dashboardContent -->
 
   </div><!-- /panel-analise -->
+
+
+  <!-- ══ PAINEL: DASHBOARD DE DADOS ════════════════════════════════════ -->
+  <div id="panel-analytics" class="tab-panel" role="tabpanel" aria-labelledby="tab-analytics">
+  </div>
 
 
   <!-- ══ PAINEL 3: HISTÓRICO DE RELATÓRIOS ══════════════════════════════ -->
@@ -921,10 +814,11 @@
 
     <div class="modal-header">
       <div class="modal-header-text">
-        <div class="modal-title" id="modalTitle">Detalhes do Processo</div>
+        <p class="modal-kicker" id="modalKicker">Edital</p>
+        <div class="modal-title" id="modalTitle">Detalhes do processo</div>
         <div class="modal-subtitle" id="modalSubtitle"></div>
       </div>
-      <button class="btn-close-modal" onclick="App.closeModal()" aria-label="Fechar modal">×</button>
+      <button class="btn-close-modal" onclick="App.closeModal()" aria-label="Fechar">Fechar</button>
     </div>
 
     <div class="modal-body" id="modalBody">

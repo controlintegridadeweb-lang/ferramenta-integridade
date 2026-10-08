@@ -1,7 +1,10 @@
 'use strict';
 
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
+
+const envDir = path.join(__dirname, '..', '..');
+require('dotenv').config({ path: path.join(envDir, '.env') });
+require('dotenv').config({ path: path.join(envDir, '.env.local'), override: true });
 
 function isHttpUrl(val) {
   return /^https?:\/\//i.test(String(val || '').trim());

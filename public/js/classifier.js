@@ -595,11 +595,7 @@ const Classifier = (() => {
     const info  = getOrgaoExcluidoInfo(row);
     const orgao = row.nome_Uasg || row.codigoUasg || 'Não identificado';
     const nome  = info ? `${info.sigla} — ${info.nome}` : orgao;
-    return `NÃO ENQUADRADO NO DECRETO — O órgão "${nome}" é uma empresa pública ou sociedade de ` +
-      `economia mista e NÃO pertence à administração pública direta, autarquias ou fundações ` +
-      `do Poder Executivo Estadual. Conforme Art. 1º do Decreto 34.196/2024, o decreto aplica-se ` +
-      `apenas à administração direta, autarquias e fundações. ` +
-      `Este processo está FORA do escopo do Decreto — não há obrigatoriedade de Avaliação de Integridade com base nesta norma.`;
+    return `O órgão "${nome}" é empresa pública ou sociedade de economia mista e não pertence à administração direta, autarquias ou fundações do Poder Executivo Estadual. O Decreto 34.196/2024 não se aplica a este processo.`;
   }
 
   /**
@@ -1020,7 +1016,8 @@ const Classifier = (() => {
 
   const STATUS_FINAL_META = {
     'avaliacao-obrigatoria': {
-      label:    'Avaliação Obrigatória',
+      label:    'Avaliação obrigatória',
+      tableLabel: 'Obrigatória',
       tagClass: 'status-obrigatoria',
       icon:     'shield',
       color:    'var(--danger)',
@@ -1028,20 +1025,23 @@ const Classifier = (() => {
     },
     'dispensada': {
       label:    'Dispensada',
+      tableLabel: 'Dispensada',
       tagClass: 'status-dispensada',
       icon:     'checkCircle',
       color:    'var(--success)',
       descricao: 'Enquadra no Art. 2º do Decreto 34.196/2024, mas a avaliação está dispensada pelo Art. 8º — o analista confirmou que um evento relevante ocorreu antes de 10/03/2025.',
     },
     'verificacao-humana': {
-      label:    'Verificação Pendente',
+      label:    'Verificação pendente',
+      tableLabel: 'Pendente',
       tagClass: 'status-verificacao',
       icon:     'alertCircle',
       color:    'var(--warning)',
       descricao: 'Não foi possível classificar automaticamente. Pode ser por: (1) valor sigiloso — informe o valor estimado; (2) aditivo contratual com valor abaixo dos limites — informe o valor total do contrato (original + aditivo); ou (3) Art. 8º pendente — confirme qual evento relevante (assinatura, publicação do edital ou início da dispensa) ocorreu antes de 10/03/2025.',
     },
     'nao-enquadrado': {
-      label:    'Não Enquadrado no Art. 2º',
+      label:    'Não enquadrado no Art. 2º',
+      tableLabel: 'Não enquadrado',
       tagClass: 'status-nao-enquadrado',
       icon:     'xCircle',
       color:    'var(--muted)',
@@ -1049,11 +1049,12 @@ const Classifier = (() => {
     },
     // NOVO status para órgãos excluídos pelo Art. 1º
     'nao-enquadrado-art1': {
-      label:    'Não Enquadrado no Decreto (Art. 1º)',
+      label:    'Não enquadrado no Decreto (Art. 1º)',
+      tableLabel: 'Fora do Decreto',
       tagClass: 'status-nao-enquadrado-art1',
       icon:     'slash',
       color:    'var(--muted)',
-      descricao: 'O órgão responsável por este processo é uma empresa pública ou sociedade de economia mista e não pertence à administração pública direta, autarquias ou fundações do Poder Executivo Estadual. Conforme Art. 1º do Decreto 34.196/2024, este processo está FORA do escopo do Decreto — não há obrigatoriedade de Avaliação de Integridade com base nesta norma.',
+      descricao: 'O órgão é empresa pública ou sociedade de economia mista e não pertence à administração direta, autarquias ou fundações. O Decreto não se aplica a este processo.',
     },
   };
 

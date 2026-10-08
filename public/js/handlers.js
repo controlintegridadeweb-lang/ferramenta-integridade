@@ -33,6 +33,7 @@ function applyFilters() {
       if      (filter === 'avaliacao-obrigatoria' && row._statusFinal !== 'avaliacao-obrigatoria') return false;
       else if (filter === 'dispensada'            && row._statusFinal !== 'dispensada')            return false;
       else if (filter === 'verificacao-humana'    && row._statusFinal !== 'verificacao-humana')    return false;
+      else if (filter === 'nao-enquadrado-art1'   && row._statusFinal !== 'nao-enquadrado-art1') return false;
       else if (filter === 'nao-enquadrado'        && row._statusFinal !== 'nao-enquadrado' && row._statusFinal !== 'nao-enquadrado-art1') return false;
       // Cards do Art. 2º refletem a fila ATIVA: interrompidos saíram de escopo e
       // não aparecem aqui (coerente com getCounts), apesar de _reasons preservado.
@@ -84,6 +85,10 @@ function clearFilters() {
   DOM.filterValorMin.value   = '';
   DOM.filterValorMax.value   = '';
   if (DOM.filterStatus) DOM.filterStatus.value = '';
+  if (State.activeFilter) {
+    setActiveFilter(null);
+    return;
+  }
   applyFilters();
 }
 

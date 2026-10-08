@@ -162,10 +162,11 @@ const Ciclos = (() => {
     const vazio = document.getElementById('geralVazio');       // estado vazio (aba Geral)
     if (!sec) return;
 
+    const temPlanilha = typeof State !== 'undefined' && State.allData && State.allData.length > 0;
     const mostrar = (visivel) => {
       sec.hidden = !visivel;
       if (acoes) acoes.hidden = !visivel;
-      if (vazio) vazio.hidden = visivel;
+      if (vazio) vazio.hidden = visivel || temPlanilha;
     };
 
     if (!_ativo) { mostrar(false); return; }
@@ -233,6 +234,12 @@ const Ciclos = (() => {
       _toast('Nenhum registro validado para incluir no relatório.', 'info', 5000);
       return;
     }
+
+    const ok = window.confirm(
+      `Gerar o relatório com ${validados.length} registro(s) validado(s)?\n\n` +
+      'Isso encerra o ciclo: eles passam a FINALIZADO e saem da fila de análise.'
+    );
+    if (!ok) return;
 
     const setVal = new Set(validados);
     const linhas = (State.allData || []).filter(r => setVal.has(r._uid));

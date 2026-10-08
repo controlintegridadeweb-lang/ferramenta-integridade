@@ -1,0 +1,10 @@
+{
+  "name": "ferramenta-integridade",
+  "private": true,
+  "description": "Ferramenta de Avaliação de Integridade — scripts da raiz encaminham para server/",
+  "scripts": {
+    "start": "npm start --prefix server",
+    "dev": "npm run dev --prefix server",
+    "test": "npm test --prefix server"
+  }
+}

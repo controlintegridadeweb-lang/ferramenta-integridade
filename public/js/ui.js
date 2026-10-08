@@ -82,12 +82,12 @@ function hideLoading() {
 function formatCurrency(v, isManual = false) {
   const num = parseFloat(v);
   if (!num || num <= 0) {
-    return `<span class="td-valor sigiloso">${Icons.get('lock', 11)} Sigiloso / Não informado</span>`;
+    return `<span class="td-valor sigiloso">Sigiloso</span>`;
   }
   const formatted =
     `R$\u00a0${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   if (isManual) {
-    return `<span class="td-valor valor-manual" title="Valor inserido manualmente pelo analista">${Icons.get('edit', 11)} ${formatted}</span>`;
+    return `<span class="td-valor valor-manual" title="Valor inserido manualmente pelo analista">${formatted}</span>`;
   }
   return `<span class="td-valor">${formatted}</span>`;
 }
@@ -118,7 +118,8 @@ function buildStatusFinalBadge(row) {
   if (!meta) return '';
   const manualDot = (row._data_referencia_manual || row._valor_manual || row._validacao_art8)
     ? `<span class="tag-data-manual-dot" title="Dado informado manualmente pelo analista"></span>` : '';
-  return `<span class="tag status-badge ${meta.tagClass}">${Icons.get(meta.icon, 12)} ${meta.label}${manualDot}</span>`;
+  const label = meta.tableLabel || meta.label;
+  return `<span class="tag status-badge ${meta.tagClass}">${label}${manualDot}</span>`;
 }
 
 /**
@@ -141,7 +142,7 @@ function buildCicloStageBadge(row) {
   const status = Ciclos.statusDe(row._uid);
   const meta = CICLO_STAGE_META[status];
   if (!meta) return '';
-  return `<span class="tag ciclo-stage ${meta.cls}" title="Estágio no ciclo: ${meta.label}">${Icons.get(meta.icon, 11)} ${meta.label}</span>`;
+  return `<span class="tag ciclo-stage ${meta.cls}" title="Estágio no ciclo: ${meta.label}">${meta.label}</span>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -149,9 +150,9 @@ function buildCicloStageBadge(row) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * Renderiza a célula "Valor Estimado" com suporte a orçamento sigiloso.
- * Quando sigiloso e sem valor manual: exibe input inline para o analista.
- * Quando sigiloso com valor manual:   exibe o valor + botão para remover.
+ * Renderiza a célula de valor.
+ * Quando sigiloso e sem valor manual: botão que abre o modal.
+ * Quando sigiloso com valor manual: valor + botão para remover.
  * @param {Object} row
  * @param {number} globalIdx — índice global em State.filteredData
  * @returns {string} HTML
@@ -169,8 +170,8 @@ function renderValorCell(row, globalIdx) {
       <div class="valor-manual-wrap valor-manual-set">
         <div class="valor-manual-display">
           ${formatCurrency(row._valor_manual, true)}
-          <button class="btn-valor-edit"
-            onclick="App.clearManualValue(${globalIdx})"
+          <button type="button" class="btn-valor-edit"
+            onclick="event.stopPropagation(); App.clearManualValue(${globalIdx})"
             title="Remover valor manual e voltar para sigiloso">
             ×
           </button>
@@ -179,28 +180,10 @@ function renderValorCell(row, globalIdx) {
   }
 
   return `
-    <div class="valor-manual-wrap">
-      <div class="valor-sigiloso-badge">
-        ${Icons.get('lock', 11)}
-        <span>Sigiloso — informe o valor</span>
-      </div>
-      <div class="valor-input-row">
-        <input
-          type="number"
-          class="valor-input"
-          id="valorInput_${globalIdx}"
-          placeholder="R$ valor estimado"
-          min="0" step="1000"
-          onkeydown="if(event.key==='Enter') App.applyManualValue(${globalIdx})"
-          aria-label="Informar valor estimado manualmente"
-        />
-        <button class="btn-valor-apply"
-          onclick="App.applyManualValue(${globalIdx})"
-          title="Aplicar valor e reclassificar">
-          ${Icons.get('checkCircle', 13)} Aplicar
-        </button>
-      </div>
-    </div>`;
+    <button type="button" class="btn-informar-valor"
+      onclick="event.stopPropagation(); App.openModal(${globalIdx})">
+      Informar valor
+    </button>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -268,37 +251,105 @@ function _updateAllStats() {
   if (DOM.pctVerificacao)   DOM.pctVerificacao.textContent   = _pct(c.verificacaoHumana, c.total);
   if (DOM.pctNaoEnquadrado) DOM.pctNaoEnquadrado.textContent = _pct(totalNaoEnq, c.total);
   if (DOM.pctDispensada)    DOM.pctDispensada.textContent    = _pct(c.dispensada, c.total);
+  if (typeof updateWorkQueue === 'function') updateWorkQueue();
 }
 
 /**
  * Define o filtro de card ativo, destaca o card e reaplica os filtros.
  * @param {string} filter — valor de data-filter do card clicado
  */
+const FILTER_LABELS = {
+  'avaliacao-obrigatoria': 'Avaliação obrigatória',
+  'dispensada': 'Dispensados (Art. 8º)',
+  'verificacao-humana': 'Verificação pendente',
+  'nao-enquadrado': 'Fora do escopo',
+  'nao-enquadrado-art1': 'Fora do Decreto',
+  'all-art2': 'Enquadrados no Art. 2º',
+  'art2-I': 'Art. 2º · Inciso I',
+  'art2-II': 'Art. 2º · Inciso II',
+  'art2-p1': 'Art. 2º · § 1º',
+  'art2-p2': 'Art. 2º · § 2º',
+};
+
 function setActiveFilter(filter) {
   State.activeFilter = filter;
   document.querySelectorAll('.summary-card').forEach(card => {
-    //filter=null → nenhum card ativo (mostra todos os registros)
     card.classList.toggle('active', filter !== null && card.dataset.filter === filter);
   });
+  document.querySelectorAll('.inciso-card').forEach(card => {
+    card.classList.toggle('active-card', filter !== null && card.dataset.filter === filter);
+  });
 
-  // Atualiza o label do panorama com o filtro ativo
   const panoramaLabel = document.getElementById('panoramaTotalLabel');
   if (panoramaLabel) {
-    const FILTER_LABELS = {
-      'avaliacao-obrigatoria': 'AVALIAÇÃO OBRIGATÓRIA',
-      'dispensada': 'DISPENSADOS (ART. 8º)',
-      'verificacao-humana': 'VERIFICAÇÃO PENDENTE',
-      'nao-enquadrado': 'FORA DO ESCOPO',
-      'art2-I': 'ART. 2º, INCISO I',
-      'art2-II': 'ART. 2º, INCISO II',
-      'art2-p1': 'ART. 2º, §1º',
-      'art2-p2': 'ART. 2º, §2º',
-    };
-    panoramaLabel.textContent = filter ? FILTER_LABELS[filter] || filter.toUpperCase() : 'TODOS OS CONTRATOS';
+    panoramaLabel.textContent = filter ? (FILTER_LABELS[filter] || filter) : 'todos os contratos';
   }
 
+  updateFilterChip();
   State.currentPage = 1;
-  applyFilters(); // definido em handlers.js
+  applyFilters();
+
+  if (filter && DOM.tableBody) {
+    const table = document.getElementById('tableSection');
+    if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function updateFilterChip() {
+  const bar = document.getElementById('filterChipBar');
+  const label = document.getElementById('filterChipLabel');
+  if (!bar || !label) return;
+  if (State.activeFilter) {
+    label.textContent = FILTER_LABELS[State.activeFilter] || State.activeFilter;
+    bar.hidden = false;
+  } else {
+    bar.hidden = true;
+  }
+}
+
+function updateExportVisibility() {
+  const nav = document.getElementById('exportNav');
+  if (!nav) return;
+  const temDados = State.allData && State.allData.length > 0;
+  const aba = document.querySelector('.tab-btn.active');
+  nav.hidden = !(temDados && aba && aba.dataset.tab === 'analise');
+}
+
+function updateWorkQueue() {
+  const queue = document.getElementById('workQueue');
+  const fila = document.getElementById('geralFila');
+  const countEl = document.getElementById('geralFilaCount');
+  const title = document.getElementById('workQueueTitle');
+  const text = document.getElementById('workQueueText');
+  const pendentes = (State.allData || []).filter(r => r._statusFinal === 'verificacao-humana').length;
+  const temDados = State.allData && State.allData.length > 0;
+
+  if (queue) {
+    queue.hidden = !(temDados && pendentes > 0);
+    if (title) title.textContent = pendentes === 1
+      ? '1 processo aguardando você'
+      : `${pendentes.toLocaleString('pt-BR')} processos aguardando você`;
+    if (text) text.textContent = 'Fila de verificação pendente — informe o valor ou confirme o Art. 8º.';
+  }
+  if (fila) {
+    fila.hidden = !(temDados && pendentes > 0);
+    if (countEl) countEl.textContent = String(pendentes);
+  }
+}
+
+function updateSyncLabel() {
+  const el = document.getElementById('geralUltimaSync');
+  const stale = document.getElementById('geralSyncStale');
+  if (!el) return;
+  if (!State.lastSyncAt) {
+    el.textContent = '—';
+    if (stale) stale.hidden = true;
+    return;
+  }
+  const d = new Date(State.lastSyncAt);
+  el.textContent = d.toLocaleString('pt-BR');
+  const minutos = (Date.now() - State.lastSyncAt) / 60000;
+  if (stale) stale.hidden = minutos < 60;
 }
 
 /* ─── Dropdowns de filtro ──────────────────────────────────────────────── */
@@ -372,72 +423,16 @@ const ROW_CLASS_MAP = {
  */
 function _buildTableRow(row, globalIdx) {
   const statusBadge = buildStatusFinalBadge(row);
-  const cicloBadge  = buildCicloStageBadge(row);
-  const reasonTags  = buildReasonTags(row._reasons, { compact: true });
   const baseClass   = ROW_CLASS_MAP[row._statusFinal] || '';
-  const revisadoClass = row._contrato_assinado ? 'row-contrato-respondido' : '';
-  // Indicador visual de processo avaliado
-  const isAvaliado = row._avaliacao_obrig_dados || row._validacao_art8 || row._contrato_assinado || row._observacao_manual;
-  const avaliadoClass = isAvaliado ? 'row-avaliado' : '';
-  const rowClass    = [baseClass, revisadoClass, avaliadoClass].filter(Boolean).join(' ');
 
-  // Data de publicação: manual tem indicador visual
-  const dataCell = row._data_referencia_manual
-    ? `<span class="td-data-manual"
-           title="${escapeHtml(DATA_REF_TIPOS[row._data_referencia_manual.tipo] || '')}">
-         ${Icons.get('edit', 11)}
-         ${escapeHtml(row._data_referencia_manual.data.split('-').reverse().join('/'))}
-       </span>`
-    : escapeHtml(fmtDateDisplay(row.dt_public_edital));
-
-  // Tag de campo pendente
-  const pendentTag = (row._campoFaltante && row._campoFaltante.length > 0)
-    ? `<span class="tag tag-pendente"
-           title="Campo faltante: ${escapeHtml(row._campoFaltante.join('; '))}">
-         ${Icons.get('alertCircle', 11)} Pendente
-       </span>`
-    : '';
-
-  // Tag especial: validação Art. 8º pendente
-  const art8PendTag = (row._art8 === 'pendente-validacao' && !row._isSigiloso)
-    ? `<span class="tag tag-art8-pendente-inline" title="Confirme o Art. 8º no modal">
-         ${Icons.get('helpCircle', 11)} Validar Art. 8º
-       </span>`
-    : '';
-
-  // Badge de observação do analista
-  const obsTag = row._observacao_manual
-    ? `<span class="tag tag-obs-analista" title="Observação do analista: ${escapeHtml(row._observacao_manual)}">
-         ${Icons.get('messageSquare', 11)} Obs. do Analista
-       </span>`
-    : '';
-
-  return `<tr class="${rowClass}">
+  return `<tr class="${baseClass} table-row" onclick="App.openModal(${globalIdx})">
     <td class="td-edital">${escapeHtml(row.numero_ano_edital || '—')}</td>
     <td class="td-uasg" title="${escapeHtml(row.nome_Uasg || '')}">${escapeHtml(row.nome_Uasg || '—')}</td>
-    <td><span class="tag tag-purple">${escapeHtml(row.modalidade || '—')}</span></td>
-    <td class="td-tipo-obj" title="${escapeHtml(row.tipo_objeto || '')}">${escapeHtml(row.tipo_objeto || '—')}</td>
-    <td class="td-data">${dataCell}</td>
     <td class="td-valor-cell">${renderValorCell(row, globalIdx)}</td>
-    <td class="td-status">
-      <div class="td-status-wrap">
-        <div class="td-status-row td-status-row--primary">
-          ${statusBadge}
-          ${cicloBadge}
-        </div>
-        ${reasonTags ? `<div class="td-status-row td-status-row--reasons">${reasonTags}</div>` : ''}
-        ${(pendentTag || art8PendTag || obsTag) ? `
-        <div class="td-status-row td-status-row--extra">
-          ${pendentTag}${art8PendTag}${obsTag}
-        </div>` : ''}
-      </div>
-    </td>
-    <td class="td-objeto" title="${escapeHtml(row.objeto || '')}">
-      ${escapeHtml(row.objeto ? (row.objeto.length > 80 ? row.objeto.slice(0, 77) + '…' : row.objeto) : '—')}
-    </td>
-    <td>
-      <button class="btn-detail" onclick="App.openModal(${globalIdx})" title="Ver análise completa">
-        ${Icons.get('eye', 13)} Analisar
+    <td class="td-status">${statusBadge}</td>
+    <td class="td-acao">
+      <button type="button" class="btn-detail" onclick="event.stopPropagation(); App.openModal(${globalIdx})">
+        Abrir
       </button>
     </td>
   </tr>`;
@@ -450,13 +445,22 @@ function renderTable() {
   const data  = State.filteredData;
   const total = data.length;
 
-  DOM.resultCount.innerHTML =
-    `${Icons.get('list', 13)} ${total.toLocaleString('pt-BR')} registro${total !== 1 ? 's' : ''}`;
+  DOM.resultCount.textContent =
+    `${total.toLocaleString('pt-BR')} ${total === 1 ? 'registro' : 'registros'}`;
+  const hint = document.querySelector('.table-hint');
+  if (hint) hint.hidden = total === 0;
 
   if (total === 0) {
-    DOM.tableBody.innerHTML      = '';
-    DOM.emptyState.style.display = 'block';
-    DOM.btnExport.disabled       = true;
+    const temDados = State.allData && State.allData.length > 0;
+    DOM.tableBody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>${
+      temDados
+        ? 'Nenhum registro neste filtro.'
+        : 'Sincronize a planilha acima para começar a análise.'
+    }</p>${temDados
+      ? '<button type="button" class="btn-ir-analise" onclick="App.clearFilters()">Mostrar todos</button>'
+      : ''}</div></td></tr>`;
+    if (DOM.emptyState) DOM.emptyState.style.display = 'none';
+    DOM.btnExport.disabled = true;
     renderPagination(0);
     return;
   }
@@ -535,9 +539,8 @@ function buildSigilosoBlock(row, globalIdx, hasManual) {
       <div class="modal-sigiloso-header">
         ${Icons.get('lock', 15)}
         <div>
-          <strong>Etapa 1 — Orçamento Sigiloso: Informar Valor Estimado</strong>
-          <span>Campo faltante: <code>valor_estimado</code>. Informe o valor para que o sistema
-          verifique os critérios do Art. 2º e determine o status final (Etapa 2).</span>
+          <strong>Informar o valor estimado</strong>
+          <span>Digite o valor e pressione Enter para classificar.</span>
         </div>
       </div>
       ${hasManual ? `
@@ -555,7 +558,7 @@ function buildSigilosoBlock(row, globalIdx, hasManual) {
                aria-label="Informar valor estimado manualmente" />
         <button class="btn-valor-apply-modal"
           onclick="App.applyManualValueFromModal(${globalIdx})">
-          ${Icons.get('checkCircle', 14)} Aplicar e Reclassificar
+          Aplicar
         </button>
       </div>`}
     </div>`;
@@ -736,7 +739,7 @@ function buildArt8ModalBlock(row, globalIdx, art8Meta) {
   if (status === 'pendente-validacao') {
     return `
       <div class="modal-norma-group">
-        <div class="modal-norma-label">Art. 8º — Dispensa</div>
+        <p class="modal-kicker">Art. 8º — dispensa</p>
         ${buildArt8ValidationBlock(row, globalIdx)}
       </div>`;
   }
@@ -784,7 +787,7 @@ function buildArt8ModalBlock(row, globalIdx, art8Meta) {
 
   return `
     <div class="modal-norma-group">
-      <div class="modal-norma-label">Art. 8º — Dispensa</div>
+      <p class="modal-kicker">Art. 8º — dispensa</p>
       <div class="art8-block ${blockClass}">
         <div class="art8-block-header">
           <div class="art8-block-icon">${Icons.get(art8Meta.icon || 'info', 18)}</div>
@@ -1003,7 +1006,7 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
     if (isInterrompido) {
       // FLUXO A: Contrato interrompido — resumo simplificado (fora do escopo)
       return `
-        <div class="modal-norma-label">Detalhamento — Contrato Interrompido</div>
+        <p class="modal-kicker">Contrato interrompido</p>
         <div class="modal-aval-obrig-block modal-aval-obrig-block--done" style="border-left: 3px solid var(--muted);">
           <div class="aval-obrig-header" style="color:#64748b;">
             ${Icons.get('slash', 15)}
@@ -1036,7 +1039,7 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
     const ctrLabel = dados.contrato_assinado === 'sim' ? 'Sim' : (dados.contrato_assinado === 'nao' ? 'Não' : '—');
 
     return `
-      <div class="modal-norma-label">Detalhamento — Avaliação Obrigatória</div>
+      <p class="modal-kicker">Avaliação obrigatória</p>
       <div class="modal-aval-obrig-block modal-aval-obrig-block--done">
         <div class="aval-obrig-header">
           ${Icons.get('checkCircle', 15)}
@@ -1075,7 +1078,7 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
 
   // ── Formulário de preenchimento ──────────────────────────────────────────
   return `
-    <div class="modal-norma-label">Detalhamento — Avaliação Obrigatória</div>
+    <p class="modal-kicker">Avaliação obrigatória</p>
     <div class="modal-aval-obrig-block">
       <div class="aval-obrig-header">
         ${Icons.get('clipboard', 15)}
@@ -1222,11 +1225,36 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
  * em State.filteredData.
  * @param {number} globalIdx
  */
+let _modalIdx = -1;
+
+function _modalNavHtml(globalIdx) {
+  const total = State.filteredData.length;
+  const pos   = globalIdx + 1;
+  return `
+    <div class="modal-nav">
+      <button type="button" class="btn-modal-nav" ${globalIdx <= 0 ? 'disabled' : ''}
+        onclick="event.stopPropagation(); App.modalPrev()">Anterior</button>
+      <span class="modal-nav-pos">${pos} de ${total.toLocaleString('pt-BR')}</span>
+      <button type="button" class="btn-modal-nav btn-modal-nav--next" ${globalIdx >= total - 1 ? 'disabled' : ''}
+        onclick="event.stopPropagation(); App.modalNext()">Próximo</button>
+    </div>`;
+}
+
+function modalPrev() {
+  if (_modalIdx > 0) openModal(_modalIdx - 1);
+}
+
+function modalNext() {
+  if (_modalIdx >= 0 && _modalIdx < State.filteredData.length - 1) openModal(_modalIdx + 1);
+}
+
 function openModal(globalIdx) {
   const row = State.filteredData[globalIdx];
   if (!row) return;
+  _modalIdx = globalIdx;
 
-  DOM.modalTitle.textContent    = `Edital ${row.numero_ano_edital || '—'}`;
+  if (DOM.modalKicker) DOM.modalKicker.textContent = 'Edital';
+  DOM.modalTitle.textContent    = row.numero_ano_edital || '—';
   DOM.modalSubtitle.textContent = row.nome_Uasg || '';
 
   const statusMeta = Classifier.STATUS_FINAL_META[row._statusFinal] || {};
@@ -1234,216 +1262,103 @@ function openModal(globalIdx) {
   const isSig      = Classifier.isSigiloso(row);
   const hasManual  = row._valor_manual !== undefined && row._valor_manual > 0;
 
-  // Blocos do Art. 8º
-  const showArt8Block   = row._requerAlice || isSig;
-  // Bloco de data de referência: apenas quando Art. 8º pendente-validacao e não é sigiloso
+  const precisaValor = isSig && !hasManual;
+  const precisaArt8  = !precisaValor && row._art8 === 'pendente-validacao';
+  const precisaQuestionario = (row._statusFinal === 'avaliacao-obrigatoria' || row._interrompido)
+    && !row._avaliacao_obrig_dados;
+  const showArt8Resolvido = (row._requerAlice || isSig) && row._art8 !== 'nao-aplicavel' && !precisaArt8;
   const showDataRefCtx  = !isSig && row._requerAlice &&
-    (row._art8 === 'pendente-validacao' || row._art8 === 'sem-data' || !!row._data_referencia_manual);
+    (row._art8 === 'sem-data' || !!row._data_referencia_manual);
   const needsDateInput  = !row._data_referencia_manual && row._art8 === 'sem-data';
   const hasManualDate   = !!row._data_referencia_manual;
 
-  const statusDescCurta = (() => {
-    const desc = statusMeta.descricao || '';
-    if (!desc) return '';
-    if (row._statusFinal === 'avaliacao-obrigatoria' &&
-        (row._art8 === 'vigente' || row._art8 === 'excecao-aditivo')) {
-      return 'Enquadra no Art. 2º e não está dispensado pelo Art. 8º. A avaliação é obrigatória.';
-    }
-    const ponto = desc.indexOf('. ');
-    return ponto > 0 ? desc.slice(0, ponto + 1) : desc;
-  })();
+  const motivoArt2 = row._excluido_art1
+    ? (row._motivoArt1 || 'O órgão não pertence à administração direta, autarquias ou fundações.')
+    : row._requerAlice
+      ? (row._motivoArt2 || '')
+      : isSig
+        ? 'O valor estimado não está na planilha.'
+        : 'A contratação não atinge os critérios de valor ou modalidade do Art. 2º.';
+
+  const factsHtml = `
+      <dl class="modal-facts">
+        <div><dt>Processo</dt><dd>${escapeHtml(row.processo || '—')}</dd></div>
+        <div><dt>Modalidade</dt><dd>${escapeHtml(row.modalidade || '—')}</dd></div>
+        <div><dt>Critério</dt><dd>${escapeHtml(row.criterio || '—')}</dd></div>
+        <div><dt>Tipo</dt><dd>${escapeHtml(row.tipo_objeto || '—')}</dd></div>
+        <div><dt>Publicação</dt><dd>${escapeHtml(fmtDateDisplay(row.dt_public_edital))}</dd></div>
+        <div><dt>Valor</dt><dd>${formatCurrency(row.valor_estimado)}</dd></div>
+        ${hasManual ? `<div><dt>Valor informado</dt><dd>${formatCurrency(row._valor_manual, true)}</dd></div>` : ''}
+        <div><dt>Fonte</dt><dd>${escapeHtml(row.fonte_recursos || '—')}</dd></div>
+        <div class="modal-facts--full"><dt>Natureza</dt><dd>${escapeHtml(row.nat_despesa || '—')}</dd></div>
+        <div class="modal-facts--full"><dt>Objeto</dt><dd>${escapeHtml(row.objeto || '—')}</dd></div>
+        ${row.observacoes ? `<div class="modal-facts--full"><dt>Planilha</dt><dd>${escapeHtml(row.observacoes)}</dd></div>` : ''}
+      </dl>`;
+
+  const acaoHtml = [
+    precisaValor ? buildSigilosoBlock(row, globalIdx, hasManual) : '',
+    precisaArt8 ? buildArt8ValidationBlock(row, globalIdx) : '',
+    precisaQuestionario ? buildAvaliacaoObrigatoriaBlock(row, globalIdx) : '',
+    row._motivoAditivoValorBaixo
+      ? `<p class="modal-status-desc">${escapeHtml(row._motivoAditivoValorBaixo)}</p>` : '',
+  ].join('');
 
   DOM.modalBody.innerHTML = `
+    ${_modalNavHtml(globalIdx)}
 
-    <!-- ── ZONA: RESULTADO ───────────────────────────────────────── -->
     <div class="modal-zone modal-zone--resultado">
       <div class="modal-status-final ${row._statusFinal}">
-        <div class="modal-status-icon">${Icons.get(statusMeta.icon || 'info', 24)}</div>
-        <div class="modal-status-body">
-          <div class="modal-status-label">Status Final da Avaliação de Integridade</div>
-          <div class="modal-status-title">${statusMeta.label || row._statusFinal}</div>
-          ${statusDescCurta ? `<div class="modal-status-desc">${statusDescCurta}</div>` : ''}
-        </div>
+        <p class="modal-kicker">${precisaValor || precisaArt8 || precisaQuestionario ? 'Falta fazer' : 'Resultado'}</p>
+        <h3 class="modal-status-title">${statusMeta.tableLabel || statusMeta.label || row._statusFinal}</h3>
       </div>
-
-      ${row._motivoAditivoValorBaixo ? `
-      <div class="modal-aditivo-aviso">
-        <div>${Icons.get('alertTriangle', 15)} Atenção — Aditivo Contratual: Verificar Valor Total</div>
-        <p>${escapeHtml(row._motivoAditivoValorBaixo)}</p>
-      </div>` : ''}
-
-      ${(row._campoFaltante && row._campoFaltante.length > 0) ? `
-      <div class="modal-campos-faltantes">
-        <div class="modal-campos-header">
-          ${Icons.get('alertCircle', 16)}
-          <strong>Ação necessária — Classificação pendente</strong>
-        </div>
-        <ul class="modal-campos-list">
-          ${row._campoFaltante.map(c => `<li>${Icons.get('arrowRight', 12)} <span>${escapeHtml(c)}</span></li>`).join('')}
-        </ul>
-        <p class="modal-campos-note">
-          Informe o(s) dado(s) acima para que o sistema determine automaticamente o enquadramento
-          no Art. 2º e a aplicação do Art. 8º. Enquanto não informado, o status permanece como
-          <strong>"Verificação Pendente"</strong>.
-        </p>
-      </div>` : ''}
+      ${acaoHtml}
     </div>
 
-    <!-- ── ZONA: ANÁLISE NORMATIVA ───────────────────────────────── -->
-    <div class="modal-zone modal-zone--normativo">
-      <div class="modal-zone-title">Análise normativa</div>
+    <div class="modal-zone modal-zone--mais">
+      <details class="modal-more">
+        <summary>Por que este resultado</summary>
+        <p class="modal-art2-motivo">${escapeHtml(motivoArt2)}</p>
+        ${row._requerAlice && row._reasons && row._reasons.length
+          ? `<div class="modal-art2-incisos">${buildReasonTags(row._reasons)}</div>` : ''}
+        ${showArt8Resolvido ? buildArt8ModalBlock(row, globalIdx, art8Meta) : ''}
+        ${showDataRefCtx ? buildDataRefBlock(row, globalIdx, needsDateInput, hasManualDate) : ''}
+      </details>
 
-    <div class="modal-norma-group">
-      <div class="modal-norma-label">Art. 2º — Obrigatoriedade</div>
-    ${row._excluido_art1 ? `
-    <div class="modal-art2-block art1-excluido">
-      <div class="modal-art2-header modal-art1-header">
-        ${Icons.get('slash', 16)}
-        <strong>FORA DO ESCOPO — Órgão excluído pelo Art. 1º do Decreto</strong>
-      </div>
-      <p class="modal-art2-motivo">${escapeHtml(row._motivoArt1 || 'O órgão não pertence à administração direta, autarquias ou fundações do Poder Executivo Estadual.')}</p>
-    </div>` : row._requerAlice ? `
-    <div class="modal-art2-block art2-enquadrado">
-      <div class="modal-art2-header">
-        ${Icons.get('checkCircle', 16)}
-        <strong>ENQUADRA no Art. 2\u00ba do Decreto 34.196/2024</strong>
-      </div>
-      <div class="modal-art2-incisos">${buildReasonTags(row._reasons)}</div>
-      ${row._motivoArt2 ? `<p class="modal-art2-motivo">${escapeHtml(row._motivoArt2)}</p>` : ''}
-    </div>` : isSig ? `
-    <div class="modal-art2-block art2-sigiloso">
-      <div class="modal-art2-header">
-        ${Icons.get('helpCircle', 16)}
-        <strong>Enquadramento INDETERMINADO \u2014 Or\u00e7amento Sigiloso</strong>
-      </div>
-      <p class="modal-art2-motivo">N\u00e3o \u00e9 poss\u00edvel verificar os crit\u00e9rios de valor do Art. 2\u00ba pois o valor
-      estimado n\u00e3o est\u00e1 dispon\u00edvel. Informe o valor estimado manualmente abaixo (Etapa 1) para que
-      o sistema possa realizar a classifica\u00e7\u00e3o e, se aplic\u00e1vel, abrir a Etapa 2 (Art. 8\u00ba).</p>
-    </div>` : `
-    <div class="modal-art2-block art2-nao-enquadrado">
-      <div class="modal-art2-header">
-        ${Icons.get('xCircle', 16)}
-        <strong>N\u00c3O ENQUADRA no Art. 2\u00ba do Decreto 34.196/2024</strong>
-      </div>
-      <p class="modal-art2-motivo">\u00d3rg\u00e3o pertence ao escopo do Decreto (administra\u00e7\u00e3o direta, autarquia ou funda\u00e7\u00e3o), mas esta contrata\u00e7\u00e3o n\u00e3o atinge nenhum crit\u00e9rio de valor ou modalidade do Art. 2\u00ba. Est\u00e1 fora do escopo de obrigatoriedade da Avalia\u00e7\u00e3o de Integridade.</p>
-    </div>`}
+      <details class="modal-more">
+        <summary>Dados do processo</summary>
+        ${factsHtml}
+      </details>
+
+      ${isSig && hasManual ? `
+      <details class="modal-more">
+        <summary>Alterar valor</summary>
+        ${buildSigilosoBlock(row, globalIdx, hasManual)}
+      </details>` : ''}
+
+      ${row._avaliacao_obrig_dados ? `
+      <details class="modal-more">
+        <summary>Questionário</summary>
+        ${buildAvaliacaoObrigatoriaBlock(row, globalIdx)}
+      </details>` : ''}
+
+      <details class="modal-more" ${row._observacao_manual ? 'open' : ''}>
+        <summary>${row._observacao_manual ? 'Observação' : 'Anotar'}</summary>
+        ${buildObservacaoBlock(row, globalIdx)}
+      </details>
     </div>
-
-    ${isSig ? `
-    <div class="modal-norma-group">
-      <div class="modal-norma-label">Etapa 1 — Valor estimado</div>
-      ${buildSigilosoBlock(row, globalIdx, hasManual)}
-    </div>` : ''}
-
-    <!-- ── ETAPA 2: ART. 8º — VALIDAÇÃO / RESULTADO ─────────────── -->
-    ${showArt8Block ? buildArt8ModalBlock(row, globalIdx, art8Meta) : ''}
-
-    ${showDataRefCtx ? `
-    <div class="modal-norma-group">
-      <div class="modal-norma-label">Data de referência (contexto)</div>
-      ${buildDataRefBlock(row, globalIdx, needsDateInput, hasManualDate)}
-    </div>` : ''}
-    </div>
-
-    <!-- ── ZONA: DADOS DO PROCESSO ───────────────────────────────── -->
-    <div class="modal-zone modal-zone--dados">
-      <div class="modal-zone-title modal-zone-title--full">Dados do processo</div>
-      <div class="modal-panel">
-        <div class="modal-section-title">${Icons.get('hash', 14)} Identificação</div>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <label>Nº do Edital</label>
-            <p><strong>${escapeHtml(row.numero_ano_edital || '—')}</strong></p>
-          </div>
-          <div class="detail-item">
-            <label>Processo</label>
-            <p>${escapeHtml(row.processo || '—')}</p>
-          </div>
-          <div class="detail-item full">
-            <label>UASG / Órgão</label>
-            <p>${escapeHtml(row.nome_Uasg || '—')}
-               <span class="text-muted">(Cód: ${escapeHtml(String(row.codigoUasg || '—'))})</span></p>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-panel">
-        <div class="modal-section-title">${Icons.get('clipboard', 14)} Dados da Licitação</div>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <label>Modalidade</label>
-            <p>${escapeHtml(row.modalidade || '—')}</p>
-          </div>
-          <div class="detail-item">
-            <label>Critério</label>
-            <p>${escapeHtml(row.criterio || '—')}</p>
-          </div>
-          <div class="detail-item">
-            <label>Tipo de Objeto</label>
-            <p>${escapeHtml(row.tipo_objeto || '—')}</p>
-          </div>
-          <div class="detail-item">
-            <label>Data de Publicação</label>
-            <p><strong>${escapeHtml(fmtDateDisplay(row.dt_public_edital))}</strong></p>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-panel">
-        <div class="modal-section-title">${Icons.get('dollarSign', 14)} Dados Financeiros</div>
-        <div class="detail-grid">
-          <div class="detail-item">
-            <label>Valor Estimado (original)</label>
-            <p>${formatCurrency(row.valor_estimado)}</p>
-          </div>
-          ${hasManual ? `
-          <div class="detail-item">
-            <label>Valor Manual Informado</label>
-            <p>${formatCurrency(row._valor_manual, true)}</p>
-          </div>` : ''}
-          <div class="detail-item">
-            <label>Fonte de Recursos</label>
-            <p>${escapeHtml(row.fonte_recursos || '—')}</p>
-          </div>
-          <div class="detail-item full">
-            <label>Natureza de Despesa</label>
-            <p>${escapeHtml(row.nat_despesa || '—')}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-panel modal-panel--full">
-        <div class="modal-section-title">${Icons.get('fileText', 14)} Objeto</div>
-        <div class="detail-grid">
-          <div class="detail-item full">
-            <label>Descrição</label>
-            <p>${escapeHtml(row.objeto || '—')}</p>
-          </div>
-        </div>
-      </div>
-
-      ${row.observacoes ? `
-      <div class="modal-panel modal-panel--full">
-        <div class="modal-section-title">${Icons.get('info', 14)} Observações (planilha)</div>
-        <div class="detail-grid">
-          <div class="detail-item full">
-            <p>${escapeHtml(row.observacoes)}</p>
-          </div>
-        </div>
-      </div>` : ''}
-    </div>
-
-    <!-- ── ZONA: AÇÕES DO ANALISTA ───────────────────────────────── -->
-    <div class="modal-zone modal-zone--acoes">
-      <div class="modal-zone-title">Ações do analista</div>
-      ${(row._statusFinal === 'avaliacao-obrigatoria' || row._interrompido) ? buildAvaliacaoObrigatoriaBlock(row, globalIdx) : ''}
-      ${buildObservacaoBlock(row, globalIdx)}
-    </div>
-
   `;
 
   DOM.modalOverlay.classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (DOM.modalOverlay) DOM.modalOverlay.scrollTop = 0;
+
+  const acao = DOM.modalBody && DOM.modalBody.querySelector('.modal-zone--resultado');
+  const focusEl = acao && (
+    acao.querySelector('#modalValorInput') || acao.querySelector('input[type="radio"]')
+  );
+  if (focusEl && typeof focusEl.focus === 'function') {
+    setTimeout(() => focusEl.focus(), 40);
+  }
 
   // ── Ciclo: iniciar análise (EM_ANALISE) só quando o analista REALMENTE começa ──
   // Abrir o modal apenas para consultar NÃO deve mover o registro para "em
@@ -1479,6 +1394,7 @@ function closeModal(e) {
   if (direct || onOverlay || onCloseBtn) {
     DOM.modalOverlay.classList.remove('open');
     document.body.style.overflow = '';
+    _modalIdx = -1;
   }
 }
 

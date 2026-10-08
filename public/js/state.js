@@ -36,6 +36,9 @@ const State = {
 
   /** Quantidade de registros por página. */
   pageSize: 25,
+
+  /** Timestamp da última sincronização bem-sucedida. */
+  lastSyncAt: null,
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +125,7 @@ function bindDOM() {
 
   // ── Modal ─────────────────────────────────────────────────────
   DOM.modalOverlay  = document.getElementById('modalOverlay');
+  DOM.modalKicker   = document.getElementById('modalKicker');
   DOM.modalTitle    = document.getElementById('modalTitle');
   DOM.modalSubtitle = document.getElementById('modalSubtitle');
   DOM.modalBody     = document.getElementById('modalBody');
