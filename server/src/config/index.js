@@ -18,10 +18,33 @@ function isValorReal(val) {
 }
 
 const SUPABASE_URL   = process.env.SUPABASE_URL || '';
-const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
-// A anon key é PÚBLICA por design (protegida por RLS). Pode ir ao navegador
-// para o supabase-js fazer login. Nunca exponha a service_role aqui.
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+
+/** Lê o claim `role` de um JWT do Supabase, sem usar a chave para mais nada. */
+function papelJwt(token) {
+  try {
+    const parte = String(token || '').split('.')[1];
+    if (!parte) return '';
+    const json = JSON.parse(Buffer.from(parte, 'base64url').toString('utf8'));
+    return String(json.role || '');
+  } catch (_) {
+    return '';
+  }
+}
+
+/* As duas chaves às vezes são coladas trocadas. O navegador só pode receber
+   a chave com role "anon". A service_role fica exclusivamente no servidor. */
+function escolherChavesSupabase() {
+  const candidatas = [process.env.SUPABASE_SERVICE_KEY, process.env.SUPABASE_ANON_KEY]
+    .map(v => String(v || '').trim())
+    .filter(isValorReal);
+  return {
+    serviceKey: candidatas.find(k => papelJwt(k) === 'service_role') || '',
+    anonKey:    candidatas.find(k => papelJwt(k) === 'anon') || '',
+  };
+}
+
+const { serviceKey: SUPABASE_SERVICE_KEY, anonKey: SUPABASE_ANON_KEY } = escolherChavesSupabase();
+const SUPABASE_KEY = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
 const SUPABASE_TABLE = process.env.SUPABASE_TABLE || 'anotacoes_analista';
 const SHEETS_URL     = process.env.SHEETS_URL || '';
 const SHEETS_REFRESH = Number(process.env.SHEETS_AUTO_REFRESH_SEG || 0);
