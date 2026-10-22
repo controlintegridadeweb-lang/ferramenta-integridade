@@ -1,7 +1,6 @@
 'use strict';
 
-/* O GitHub Pages só entrega os arquivos estáticos. A API continua no Node.
-   Enquanto não houver uma URL pública, o site publicado usa o servidor local. */
+/* O GitHub Pages só entrega a interface. A API fica no Render. */
 if (/(^|\.)github\.io$/i.test(location.hostname)) {
-  window.FERRAMENTA_API = 'http://localhost:3000';
+  window.FERRAMENTA_API = 'https://ferramenta-integridade.onrender.com';
 }
