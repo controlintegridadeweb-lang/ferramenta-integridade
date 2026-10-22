@@ -266,6 +266,7 @@ window.App = {
   clearAvaliacaoObrigatoria: clearAvaliacaoObrigatoria,
   questaoEscolher:         questaoEscolher,
   questaoVoltar:           questaoVoltar,
+  questaoValorAdjudicado:  questaoValorAdjudicado,
   concluirProcesso:        concluirProcesso,
   desfazerConclusao:       desfazerConclusao,
 };

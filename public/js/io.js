@@ -645,7 +645,11 @@ function exportCSV() {
       cel(fmtMotivo(r)),                                           // 14. Motivo
       cel(r._observacao_manual || ''),                             // 15. Observações do Analista
       cel(ao ? (AVAL_OBRIG_CAT_LABEL[ao.categoria] || ao.categoria || '') : ''), // 16. Categoria
-      cel(ao ? (ao.valor_adjudicacao === 'sim' ? 'Sim' : (ao.valor_adjudicacao === 'nao' ? 'Não' : '')) : ''), // 17. Adjudicação
+      cel(ao ? (ao.valor_adjudicacao === 'sim'
+        ? (Number(ao.valor_adjudicado) > 0
+            ? 'Sim — ' + fmtValor(ao.valor_adjudicado)
+            : 'Sim')
+        : (ao.valor_adjudicacao === 'nao' ? 'Não' : '')) : ''), // 17. Adjudicação
       cel(ao ? (ao.contrato_interrompido === 'sim' ? 'Sim' : (ao.contrato_interrompido === 'nao' ? 'Não' : '')) : ''), // 18. Interrompido
       cel(ao ? (ao.motivo_interrupcao || '') : ''),                // 19. Motivo interrupção
     ].join(',');

@@ -2744,6 +2744,19 @@ tbody td {
   color: #64748b;
 }
 .q-step[hidden] { display: none !important; }
+.q-valor { margin-top: 14px; }
+.q-valor[hidden] { display: none !important; }
+.q-valor-input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1.5px solid #d7e3e0;
+  border-radius: 10px;
+  font-size: 16px;
+  color: var(--text);
+  background: #fff;
+}
+.q-valor-input:focus { outline: none; border-color: #0a6b63; }
 .q-step .aval-obrig-q-label { margin-bottom: 10px; }
 .q-step .aval-obrig-opt-text { font-size: 15px; }
 .q-step .aval-obrig-actions { margin-top: 14px; }

@@ -158,11 +158,7 @@ async function _sincronizarCiclo(row, opts) {
   if (atual === 'FINALIZADO') return;   // terminal: nada a fazer
 
   const obrigatorio = row._statusFinal === 'avaliacao-obrigatoria';
-  const questionarioCompleto = !!(row._avaliacao_obrig_dados &&
-    row._avaliacao_obrig_dados.contrato_interrompido === 'nao' &&
-    row._avaliacao_obrig_dados.categoria &&
-    row._avaliacao_obrig_dados.valor_adjudicacao &&
-    row._avaliacao_obrig_dados.contrato_assinado);
+  const questionarioCompleto = questionarioRespondido(row._avaliacao_obrig_dados);
 
   let alvo;
   if (!obrigatorio) {
@@ -677,6 +673,7 @@ function applyAvaliacaoObrigatoria(globalIdx) {
       motivo_interrupcao:     motivo,
       categoria:              '',
       valor_adjudicacao:      '',
+      valor_adjudicado:       null,
       contrato_assinado:      '',
       ts:                     Date.now(),
     };
@@ -716,6 +713,23 @@ function applyAvaliacaoObrigatoria(globalIdx) {
     showToast('Informe se existe valor de adjudicação (pergunta 3).', 'error', 3000);
     return;
   }
+  let valorAdjudicado = null;
+  if (adjRadio.value === 'sim') {
+    const valorInput = document.getElementById('avalObrigValorInput');
+    valorAdjudicado = parseValorBr(valorInput && valorInput.value);
+    if (!(valorAdjudicado > 0)) {
+      questaoIr('3');
+      const wrap = document.getElementById('avalObrigValorWrap');
+      if (wrap) wrap.hidden = false;
+      if (valorInput) {
+        valorInput.classList.add('input-error');
+        valorInput.focus();
+        setTimeout(() => valorInput.classList.remove('input-error'), 1800);
+      }
+      showToast('Informe o valor adjudicado.', 'error', 3000);
+      return;
+    }
+  }
 
   // 4. Contrato assinado
   const ctrRadio = document.querySelector('input[name="avalObrigContratoAssinado"]:checked');
@@ -731,6 +745,7 @@ function applyAvaliacaoObrigatoria(globalIdx) {
     motivo_interrupcao:     '',
     categoria:              catRadio.value,
     valor_adjudicacao:      adjRadio.value,
+    valor_adjudicado:       valorAdjudicado,
     contrato_assinado:      ctrRadio.value,
     ts:                     Date.now(),
   };
@@ -769,7 +784,46 @@ function questaoEscolher(campo, valor) {
   }
   if (campo === 'interrompido') questaoIr(valor === 'sim' ? 'motivo' : '2');
   else if (campo === 'categoria') questaoIr('3');
-  else if (campo === 'adjudicacao') questaoIr('4');
+  else if (campo === 'adjudicacao') {
+    const wrap = document.getElementById('avalObrigValorWrap');
+    if (valor === 'sim') {
+      if (wrap) wrap.hidden = false;
+      const input = document.getElementById('avalObrigValorInput');
+      if (input) setTimeout(() => input.focus(), 30);
+    } else {
+      if (wrap) wrap.hidden = true;
+      const input = document.getElementById('avalObrigValorInput');
+      if (input) input.value = '';
+      questaoIr('4');
+    }
+  }
+}
+
+function parseValorBr(raw) {
+  let s = String(raw || '').trim().replace(/[R$\s]/gi, '');
+  if (!s) return NaN;
+  const temVirgula = s.includes(',');
+  const pontos = (s.match(/\./g) || []).length;
+  if (temVirgula) s = s.replace(/\./g, '').replace(',', '.');
+  else if (pontos > 1) s = s.replace(/\./g, '');
+  else if (pontos === 1 && /\.\d{3}$/.test(s)) s = s.replace('.', '');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function questaoValorAdjudicado() {
+  const input = document.getElementById('avalObrigValorInput');
+  const n = parseValorBr(input && input.value);
+  if (!(n > 0)) {
+    if (input) {
+      input.classList.add('input-error');
+      input.focus();
+      setTimeout(() => input.classList.remove('input-error'), 1800);
+    }
+    showToast('Informe o valor adjudicado.', 'error', 3000);
+    return;
+  }
+  questaoIr('4');
 }
 
 function questaoIr(id) {
@@ -778,6 +832,11 @@ function questaoIr(id) {
   });
   const wizard = document.getElementById('qWizard');
   if (wizard) wizard.dataset.atual = id;
+  if (id === '3') {
+    const sim = document.querySelector('input[name="avalObrigAdjudicacao"][value="sim"]');
+    const wrap = document.getElementById('avalObrigValorWrap');
+    if (wrap) wrap.hidden = !(sim && sim.checked);
+  }
   const marcado = document.querySelector('input[name="avalObrigInterrompido"]:checked');
   const ordem = marcado && marcado.value === 'sim' ? ['1', 'motivo'] : ['1', '2', '3', '4'];
   const idx = Math.max(0, ordem.indexOf(id));
@@ -800,7 +859,7 @@ async function concluirProcesso(globalIdx) {
   const row = State.filteredData[globalIdx];
   if (!row) return;
   const d = row._avaliacao_obrig_dados;
-  const completo = d && d.contrato_interrompido === 'nao' && d.categoria && d.valor_adjudicacao && d.contrato_assinado;
+  const completo = questionarioRespondido(d);
   if (!completo) {
     showToast('Responda todas as perguntas antes de concluir.', 'error', 4000);
     return;

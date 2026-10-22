@@ -113,6 +113,18 @@ function buildReasonTags(reasons, { compact = false } = {}) {
  * @param {Object} row — linha classificada
  * @returns {string} HTML
  */
+/** Questionário normal completo, inclusive o valor quando há adjudicação. */
+function questionarioRespondido(d) {
+  if (!d || d.contrato_interrompido !== 'nao') return false;
+  if (!d.categoria || !d.valor_adjudicacao || !d.contrato_assinado) return false;
+  if (d.valor_adjudicacao === 'sim' && !(Number(d.valor_adjudicado) > 0)) return false;
+  return true;
+}
+
+function fmtReais(n) {
+  return 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** Processo encerrado pelo analista: sai da fila de avaliação obrigatória. */
 function registroConcluido(row) {
   if (!row) return false;
@@ -1025,9 +1037,16 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
         </div>`;
     }
 
+    if (!questionarioRespondido(dados)) {
+      /* Resposta incompleta (ex.: disse que há adjudicação e não informou o valor).
+         Cai no formulário abaixo. */
+    } else {
     // FLUXO B: Contrato não interrompido — resumo completo
     const catLabel = AVALIACAO_OBRIG_CATEGORIAS[dados.categoria] || dados.categoria || '—';
-    const adjLabel = dados.valor_adjudicacao === 'sim' ? 'Sim' : (dados.valor_adjudicacao === 'nao' ? 'Não' : '—');
+    const adjNum = Number(dados.valor_adjudicado);
+    const adjLabel = dados.valor_adjudicacao === 'sim'
+      ? (adjNum > 0 ? 'Sim — ' + fmtReais(adjNum) : 'Sim')
+      : (dados.valor_adjudicacao === 'nao' ? 'Não' : '—');
     const ctrLabel = dados.contrato_assinado === 'sim' ? 'Sim' : (dados.contrato_assinado === 'nao' ? 'Não' : '—');
 
     const jaConcluido = registroConcluido(row);
@@ -1077,6 +1096,7 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
           </button>
         </div>`}
       </div>`;
+    }
   }
 
   // ── Uma pergunta por vez ────────────────────────────────────────────────
@@ -1148,6 +1168,16 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
             <input type="radio" name="avalObrigAdjudicacao" value="nao">
             <span class="aval-obrig-opt-text">Não</span>
           </label>
+        </div>
+        <div class="q-valor" id="avalObrigValorWrap" hidden>
+          <label class="aval-obrig-q-label" for="avalObrigValorInput"><strong>Qual o valor adjudicado?</strong></label>
+          <input type="text" inputmode="decimal" id="avalObrigValorInput" class="q-valor-input"
+            placeholder="Ex.: 1.500.000,00" autocomplete="off"
+            aria-label="Valor adjudicado em reais"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();App.questaoValorAdjudicado();}">
+          <div class="aval-obrig-actions">
+            <button type="button" class="btn-aval-obrig-apply" onclick="App.questaoValorAdjudicado()">Continuar</button>
+          </div>
         </div>
       </div>
 
@@ -1223,8 +1253,8 @@ function openModal(globalIdx) {
   const precisaQuestionario = (row._statusFinal === 'avaliacao-obrigatoria' || row._interrompido)
     && !row._avaliacao_obrig_dados;
   const dadosQ = row._avaliacao_obrig_dados;
-  const questionarioPronto = !!(dadosQ && dadosQ.contrato_interrompido === 'nao'
-    && dadosQ.categoria && dadosQ.valor_adjudicacao && dadosQ.contrato_assinado);
+  const questionarioPronto = questionarioRespondido(dadosQ);
+  const questionarioIncompleto = !!(dadosQ && dadosQ.contrato_interrompido !== 'sim' && !questionarioPronto);
   const concluido = registroConcluido(row);
   const podeConcluir = questionarioPronto && !concluido && row._statusFinal === 'avaliacao-obrigatoria';
   const showArt8Resolvido = (row._requerAlice || isSig) && row._art8 !== 'nao-aplicavel' && !precisaArt8;
@@ -1259,7 +1289,7 @@ function openModal(globalIdx) {
   const acaoHtml = [
     precisaValor ? buildSigilosoBlock(row, globalIdx, hasManual) : '',
     precisaArt8 ? buildArt8ValidationBlock(row, globalIdx) : '',
-    (precisaQuestionario || questionarioPronto) ? buildAvaliacaoObrigatoriaBlock(row, globalIdx) : '',
+    (precisaQuestionario || questionarioPronto || questionarioIncompleto) ? buildAvaliacaoObrigatoriaBlock(row, globalIdx) : '',
     row._motivoAditivoValorBaixo
       ? `<p class="modal-status-desc">${escapeHtml(row._motivoAditivoValorBaixo)}</p>` : '',
   ].join('');
@@ -1296,7 +1326,7 @@ function openModal(globalIdx) {
         ${buildSigilosoBlock(row, globalIdx, hasManual)}
       </details>` : ''}
 
-      ${row._avaliacao_obrig_dados && !questionarioPronto ? `
+      ${dadosQ && dadosQ.contrato_interrompido === 'sim' ? `
       <details class="modal-more" open>
         <summary>Questionário</summary>
         ${buildAvaliacaoObrigatoriaBlock(row, globalIdx)}

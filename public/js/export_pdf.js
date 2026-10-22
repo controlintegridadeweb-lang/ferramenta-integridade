@@ -77,7 +77,11 @@ function _pdf_avalObrigLabel(row) {
   if (!d) return null;
   return {
     categoria:    _PDF_AVAL_OBRIG_CATEGORIAS[d.categoria] || d.categoria || '—',
-    adjudicacao:  d.valor_adjudicacao === 'sim' ? 'Sim' : (d.valor_adjudicacao === 'nao' ? 'Não' : '—'),
+    adjudicacao:  d.valor_adjudicacao === 'sim'
+      ? (Number(d.valor_adjudicado) > 0
+          ? 'Sim — R$ ' + Number(d.valor_adjudicado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : 'Sim')
+      : (d.valor_adjudicacao === 'nao' ? 'Não' : '—'),
     interrompido: d.contrato_interrompido === 'sim' ? 'Sim' : (d.contrato_interrompido === 'nao' ? 'Não' : '—'),
     motivo:       d.motivo_interrupcao || '',
   };
