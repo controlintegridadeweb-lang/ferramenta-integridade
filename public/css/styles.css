@@ -134,6 +134,16 @@
 
 html { scroll-behavior: smooth; }
 
+#appShell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#appShell > main {
+  flex: 1 0 auto;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -4216,10 +4226,10 @@ button.an-kpi-card:hover { border-color: var(--brand); background: var(--brand-5
    [AJUSTE 5] FOOTER — Direitos autorais Control RN
    ══════════════════════════════════════════════════════════════════════════ */
 .app-footer {
-  background: var(--surface);
-  color: var(--text-3);
-  margin-top: 48px;
-  border-top: 1px solid var(--border);
+  background: var(--brand-dark);
+  color: rgba(255, 255, 255, .88);
+  margin-top: auto;
+  border-top: none;
 }
 
 .footer-inner {
@@ -4239,23 +4249,23 @@ button.an-kpi-card:hover { border-color: var(--brand); background: var(--brand-5
   gap: 8px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text);
+  color: #fff;
   letter-spacing: normal;
 }
 
 .footer-brand svg {
-  color: var(--brand);
+  color: rgba(255, 255, 255, .85);
 }
 
 .footer-copy {
   font-size: var(--text-sm);
-  color: var(--text-3);
+  color: rgba(255, 255, 255, .82);
   line-height: var(--leading-relaxed);
 }
 
 .footer-decree {
   font-size: var(--text-xs);
-  color: var(--text-4);
+  color: rgba(255, 255, 255, .68);
   letter-spacing: normal;
 }
 
