@@ -1295,8 +1295,6 @@ function openModal(globalIdx) {
   ].join('');
 
   DOM.modalBody.innerHTML = `
-    ${_modalNavHtml(globalIdx)}
-
     <div class="modal-zone modal-zone--resultado">
       <div class="modal-status-final ${concluido ? 'concluido' : (podeConcluir ? 'questionario-pronto' : row._statusFinal)}">
         <p class="modal-kicker">${concluido ? 'Resultado' : (podeConcluir ? 'Próximo passo' : (precisaValor || precisaArt8 || precisaQuestionario ? 'Falta fazer' : 'Resultado'))}</p>
@@ -1338,10 +1336,12 @@ function openModal(globalIdx) {
       </details>
     </div>
   `;
+  if (DOM.modalFooter) DOM.modalFooter.innerHTML = _modalNavHtml(globalIdx);
 
   DOM.modalOverlay.classList.add('open');
   document.body.style.overflow = 'hidden';
   if (DOM.modalOverlay) DOM.modalOverlay.scrollTop = 0;
+  if (DOM.modalBody) DOM.modalBody.scrollTop = 0;
 
   const acao = DOM.modalBody && DOM.modalBody.querySelector('.modal-zone--resultado');
   const focusEl = acao && (

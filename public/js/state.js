@@ -131,6 +131,7 @@ function bindDOM() {
   DOM.modalTitle    = document.getElementById('modalTitle');
   DOM.modalSubtitle = document.getElementById('modalSubtitle');
   DOM.modalBody     = document.getElementById('modalBody');
+  DOM.modalFooter   = document.getElementById('modalFooter');
 
   // ── Abas ─────────────────────────────────────────────────────────────
   DOM.analyticsPanel = document.getElementById('panel-analytics');

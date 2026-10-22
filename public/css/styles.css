@@ -5422,6 +5422,9 @@ tbody td {
    MODAL — mesmo visual dos cards e filtros
    ═══════════════════════════════════════════════════════════════════════════ */
 .modal-container {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 80px);
   font-feature-settings: normal;
   font-kerning: normal;
   letter-spacing: 0.01em;
@@ -5487,7 +5490,17 @@ tbody td {
   color: var(--brand-dark);
 }
 
-.modal-container .modal-body { background: var(--bg); }
+.modal-container .modal-body {
+  background: var(--bg);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.modal-footer {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
 .modal-container .modal-zone {
   padding: 22px;
   gap: 14px;
@@ -5585,7 +5598,7 @@ tbody td {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 14px 22px 0;
+  padding: 14px 22px;
 }
 .btn-modal-nav {
   min-height: 40px;
