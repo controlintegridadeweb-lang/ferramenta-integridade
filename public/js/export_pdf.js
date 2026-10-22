@@ -58,32 +58,26 @@ function _pdf_art8Label(row) {
   return m[row._art8] || '—';
 }
 
-function _pdf_contratoAssinado(row) {
-  const v = row._contrato_assinado;
-  if (v === 'sim') return 'Sim — Contrato já assinado';
-  if (v === 'nao') return 'Não — Contrato ainda não assinado';
-  return 'Não informado';
-}
-
 const _PDF_AVAL_OBRIG_CATEGORIAS = {
   licitacao_andamento:    'Licitação em andamento',
-  adjudicado_fornecedor:  'Processo adjudicado com seleção de fornecedor',
-  contrato_firmado:       'Contrato firmado (com assinatura)',
+  adjudicado_fornecedor:  'Fornecedor já escolhido',
+  contrato_firmado:       'Contrato assinado, sem execução',
   contrato_execucao:      'Contrato em execução',
 };
 
 function _pdf_avalObrigLabel(row) {
   const d = row._avaliacao_obrig_dados;
   if (!d) return null;
+  const contrato = d.contrato_assinado || row._contrato_assinado;
+  const valorNum = Number(d.valor_adjudicado);
   return {
     categoria:    _PDF_AVAL_OBRIG_CATEGORIAS[d.categoria] || d.categoria || '—',
     adjudicacao:  d.valor_adjudicacao === 'sim'
-      ? (Number(d.valor_adjudicado) > 0
-          ? 'Sim — R$ ' + Number(d.valor_adjudicado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-          : 'Sim')
-      : (d.valor_adjudicacao === 'nao' ? 'Não' : '—'),
+      ? (valorNum > 0 ? _pdf_fmtBRL(valorNum) : 'Sim, valor não informado')
+      : (d.valor_adjudicacao === 'nao' ? 'Não há' : '—'),
     interrompido: d.contrato_interrompido === 'sim' ? 'Sim' : (d.contrato_interrompido === 'nao' ? 'Não' : '—'),
     motivo:       d.motivo_interrupcao || '',
+    contrato:     contrato === 'sim' ? 'Sim' : (contrato === 'nao' ? 'Não' : '—'),
   };
 }
 
@@ -103,15 +97,11 @@ function _pdf_esc(str) {
 function _buildPdfHtml(data, dataHoje) {
 
   /* ── linha label/valor ── */
-  function row(label, value, highlight) {
-    const bgMap = { danger: '#fff0f0', success: '#f0fdf4', warning: '#fffbeb' };
-    const bdMap = { danger: '#fca5a5', success: '#86efac', warning: '#fde68a' };
-    const bg = highlight ? (bgMap[highlight] || '#ffffff') : '#ffffff';
-    const bd = highlight ? `border-left: 3px solid ${bdMap[highlight] || '#e2e8f0'}` : '';
+  function row(label, value) {
     return `
       <tr>
         <td class="lv-label">${_pdf_esc(label)}</td>
-        <td class="lv-value" style="background:${bg};${bd}">${_pdf_esc(value)}</td>
+        <td class="lv-value">${_pdf_esc(value)}</td>
       </tr>`;
   }
 
@@ -123,118 +113,92 @@ function _buildPdfHtml(data, dataHoje) {
   }
 
   /* ── fichas de processos ── */
-  // ── Mapa de status para label legível ────────────────────────────────────
-  const STATUS_PDF_LABEL = {
-    'avaliacao-obrigatoria': 'AVALIAÇÃO OBRIGATÓRIA',
-    'verificacao-humana':    'VERIFICAÇÃO PENDENTE',
-    'dispensada':            'DISPENSADA (Art. 8º)',
-    'nao-enquadrado':        'NÃO ENQUADRADO',
-    'nao-enquadrado-art1':   'EXCLUÍDO (Art. 1º)',
-  };
-
-  // ── Mapa de cor do badge por status ──────────────────────────────────────
-  const STATUS_PDF_BADGE_BG = {
-    'avaliacao-obrigatoria': '#ffffff',
-    'verificacao-humana':    '#ffffff',
-    'dispensada':            '#ffffff',
-    'nao-enquadrado':        '#ffffff',
-    'nao-enquadrado-art1':   '#ffffff',
-  };
-  const STATUS_PDF_BADGE_COLOR = {
-    'avaliacao-obrigatoria': '#9f1239',
-    'verificacao-humana':    '#9a3412',
-    'dispensada':            '#065f46',
-    'nao-enquadrado':        '#334155',
-    'nao-enquadrado-art1':   '#1e3a8a',
-  };
-
   let fichas = '';
   data.forEach((r, idx) => {
     const valorEfetivo = r._valor_manual > 0 ? r._valor_manual : (r.valor_estimado || 0);
-    const statusLabel  = STATUS_PDF_LABEL[r._statusFinal] || (r._statusFinal || '').toUpperCase();
-    const badgeBg      = STATUS_PDF_BADGE_BG[r._statusFinal] || '#ffffff';
-    const badgeColor   = STATUS_PDF_BADGE_COLOR[r._statusFinal] || '#334155';
+    const ao = _pdf_avalObrigLabel(r);
+    const interrompido = ao && ao.interrompido === 'Sim';
 
     fichas += `
     <div class="process-card">
 
-      <!-- Cabeçalho da ficha -->
       <div class="process-header">
-        <div class="proc-num-wrap">
-          <span class="proc-index">${idx + 1}</span>
-          <span class="proc-badge" style="background:${badgeBg};color:${badgeColor};border-color:${badgeBg}">${statusLabel}</span>
+        <span class="proc-index">${idx + 1}</span>
+        <div class="proc-id">
+          <span class="proc-nup">${_pdf_esc(r.processo || r.numero_ano_edital || 'Processo sem número')}</span>
+          <span class="proc-org">${_pdf_esc(r.nome_Uasg || 'Órgão não informado')}</span>
         </div>
-        <span class="proc-edital">${_pdf_esc(r.numero_ano_edital || r.processo || 'Nº não informado')}</span>
       </div>
 
-      <!-- Tabela de dados -->
       <table class="lv-table">
 
-        ${secTitle('1. Identificação')}
-        ${row('Número do Processo', r.processo || r.numero_ano_edital || '—')}
-        ${row('Nº do Edital', r.numero_ano_edital || '—')}
-        ${row('Órgão (UASG)', r.nome_Uasg || '—')}
+        ${secTitle('1. Qual é o processo')}
+        ${row('Número do processo', r.processo || '—')}
+        ${row('Órgão', r.nome_Uasg || '—')}
         ${row('Código UASG', r.codigoUasg || '—')}
-        ${row('Data Publicação Edital', _pdf_fmtDate(r.dt_public_edital))}
-        ${r.dt_sessao ? row('Data da Sessão', _pdf_fmtDate(r.dt_sessao)) : ''}
-
-        ${secTitle('2. Dados da Licitação')}
-        ${row('Tipo de Contratação', r.tipo_objeto || '—')}
+        ${row('Edital', r.numero_ano_edital || '—')}
+        ${row('Publicação do edital', _pdf_fmtDate(r.dt_public_edital))}
+        ${r.dt_sessao ? row('Data da sessão', _pdf_fmtDate(r.dt_sessao)) : ''}
         ${row('Modalidade', r.modalidade || '—')}
+        ${row('Tipo de contratação', r.tipo_objeto || '—')}
+        ${r.criterio ? row('Critério', r.criterio) : ''}
 
-        ${secTitle('3. Dados Financeiros')}
-        ${row('Valor Estimado (planilha)',
-              r._isSigiloso && !r._valor_manual ? 'Sigiloso / Não informado' : _pdf_fmtBRL(r.valor_estimado),
-              r._isSigiloso && !r._valor_manual ? 'warning' : null)}
-        ${r._valor_manual > 0 ? row('Valor Informado Manualmente', _pdf_fmtBRL(r._valor_manual), 'success') : ''}
-        ${row('Valor Considerado na Análise',
-              r._isSigiloso && !r._valor_manual ? 'Sigiloso / Não informado' : _pdf_fmtBRL(valorEfetivo))}
+        ${secTitle('2. O que se contrata')}
+        ${row('Objeto', r.objeto || '—')}
+        ${row('Natureza da despesa', r.nat_despesa || '—')}
+        ${r.fonte_recursos ? row('Fonte de recursos', r.fonte_recursos) : ''}
+        ${r.observacoes ? row('Observações da planilha', r.observacoes) : ''}
+        ${r._observacao_manual ? row('Observação do analista', r._observacao_manual) : ''}
 
-        ${secTitle('4. Objeto da Contratação')}
-        ${row('Descrição do Objeto', r.objeto || '—')}
-        ${r.nat_despesa ? row('Natureza de Despesa', r.nat_despesa) : ''}
-        ${r.observacoes ? row('Observações (planilha)', r.observacoes) : ''}
-        ${r._observacao_manual ? row('Observações do Analista', r._observacao_manual, 'success') : ''}
+        ${secTitle('3. Valores')}
+        ${row('Valor estimado',
+              r._isSigiloso && !r._valor_manual ? 'Sigiloso / não informado' : _pdf_fmtBRL(r.valor_estimado))}
+        ${r._valor_manual > 0 ? row('Valor informado pelo analista', _pdf_fmtBRL(r._valor_manual)) : ''}
+        ${row('Valor usado na análise',
+              r._isSigiloso && !r._valor_manual ? 'Sigiloso / não informado' : _pdf_fmtBRL(valorEfetivo))}
+        ${ao && !interrompido ? row('Valor adjudicado', ao.adjudicacao) : ''}
 
-        ${secTitle('5. Análise Normativa — Decreto 34.196/2024')}
-        ${row('Art. 1º — Âmbito de aplicação', _pdf_art1Label(r),
-              r._excluido_art1 ? 'warning' : null)}
-        ${r._motivoArt1 ? row('Motivo (Art. 1º)', r._motivoArt1) : ''}
-        ${row('Art. 2º — Obrigatoriedade (Decreto 34.196/2024)?',
-              _pdf_art2Label(r),
-              r._requerAlice ? 'danger' : (r._isSigiloso ? 'warning' : null))}
-        ${r._motivoArt2 ? row('Motivo (Art. 2º)', r._motivoArt2) : ''}
-        ${row('Art. 8º — Dispensa por Anterioridade?',
-              _pdf_art8Label(r),
-              r._art8 === 'dispensado' ? 'success' :
-              r._art8 === 'pendente-validacao' ? 'warning' : null)}
-        ${r._motivoArt8 ? row('Motivo (Art. 8º)', r._motivoArt8) : ''}
+        ${secTitle('4. Em que ponto está')}
+        ${row('Contrato interrompido?', ao ? ao.interrompido : '—')}
+        ${interrompido && ao.motivo ? row('Motivo da interrupção', ao.motivo) : ''}
+        ${!interrompido ? row('Etapa', ao ? ao.categoria : '—') : ''}
+        ${!interrompido ? row('Contrato assinado?', ao ? ao.contrato : (r._contrato_assinado === 'sim' ? 'Sim' : (r._contrato_assinado === 'nao' ? 'Não' : 'Não informado'))) : ''}
 
-        ${secTitle('6. Situação Contratual')}
-        ${row('Status Final', statusLabel)}
-        ${row('Contrato assinado?', _pdf_contratoAssinado(r))}
+        ${secTitle('5. Por que entra neste relatório')}
+        ${r._motivoArt2 ? row('Motivo', r._motivoArt2) : ''}
+        ${r._motivoArt1 && !r._motivoArt2 ? row('Motivo', r._motivoArt1) : ''}
+        ${row('Art. 1º — âmbito', _pdf_art1Label(r))}
+        ${row('Art. 2º — obrigatoriedade', _pdf_art2Label(r))}
+        ${row('Art. 8º — dispensa por data anterior', _pdf_art8Label(r))}
+        ${r._motivoArt8 ? row('Motivo do Art. 8º', r._motivoArt8) : ''}
         ${r._campoFaltante && r._campoFaltante.length > 0
-            ? row('Campos pendentes', r._campoFaltante.join(', '), 'warning')
+            ? row('Campos pendentes', r._campoFaltante.join(', '))
             : ''}
-
-        ${(() => {
-          const ao = _pdf_avalObrigLabel(r);
-          if (!ao) return '';
-          return `
-            ${secTitle('7. Detalhamento — Avaliação Obrigatória')}
-            ${row('Categoria do processo', ao.categoria)}
-            ${row('Existe valor de adjudicação?', ao.adjudicacao)}
-            ${row('Contrato interrompido?', ao.interrompido,
-                  ao.interrompido === 'Sim' ? 'warning' : null)}
-            ${ao.interrompido === 'Sim' && ao.motivo
-                ? row('Motivo da interrupção', ao.motivo, 'warning')
-                : ''}
-          `;
-        })()}
 
       </table>
     </div>`;
   });
+
+  const linhasResumo = data.map((r, idx) => {
+    const ao = _pdf_avalObrigLabel(r);
+    const interrompido = ao && ao.interrompido === 'Sim';
+    const etapa = interrompido ? 'Contrato interrompido' : (ao ? ao.categoria : '—');
+    const valor = (r._isSigiloso && !(r._valor_manual > 0))
+      ? 'Sigiloso'
+      : _pdf_fmtBRL(r._valor_manual > 0 ? r._valor_manual : (r.valor_estimado || 0));
+    const contrato = interrompido ? '—' : (ao ? ao.contrato : (
+      r._contrato_assinado === 'sim' ? 'Sim' : (r._contrato_assinado === 'nao' ? 'Não' : '—')
+    ));
+    return `
+      <tr>
+        <td class="sum-n">${idx + 1}</td>
+        <td>${_pdf_esc(r.processo || '—')}</td>
+        <td>${_pdf_esc(r.nome_Uasg || '—')}</td>
+        <td>${_pdf_esc(etapa)}</td>
+        <td>${_pdf_esc(valor)}</td>
+        <td>${_pdf_esc(contrato)}</td>
+      </tr>`;
+  }).join('');
 
   /* ── DOCUMENTO COMPLETO ── */
   return `<!DOCTYPE html>
@@ -404,17 +368,11 @@ function _buildPdfHtml(data, dataHoje) {
 
     /* Cabeçalho da ficha */
     .process-header {
-      background: #0f9387;
-      padding: 10px 16px;
+      background: #0a6b63;
+      padding: 12px 16px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 12px;
-    }
-    .proc-num-wrap {
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
     .proc-index {
       width: 28px; height: 28px;
@@ -427,25 +385,22 @@ function _buildPdfHtml(data, dataHoje) {
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
-    .proc-badge {
-      font-size: 7pt;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #9f1239;
-      background: #ffffff;
-      border: 1px solid #ffffff;
-      border-radius: 4px;
-      padding: 2px 8px;
+    .proc-id {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
     }
-    .proc-edital {
-      font-size: 9pt;
+    .proc-nup {
+      font-size: 11pt;
+      font-weight: 700;
       color: #ffffff;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 320px;
+      line-height: 1.2;
+    }
+    .proc-org {
+      font-size: 8.5pt;
+      color: #ffffff;
+      line-height: 1.3;
     }
 
     /* ══ Tabela label/valor ══════════════════════════════════════════════════ */
@@ -455,18 +410,17 @@ function _buildPdfHtml(data, dataHoje) {
       font-size: 8.5pt;
     }
     .lv-table td {
-      padding: 5px 14px;
-      border-bottom: 1px solid #f1f5f9;
-      vertical-align: middle;
-      line-height: 1.4;
+      padding: 6px 14px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+      line-height: 1.45;
     }
     .lv-label {
-      width: 32%;
-      background: #f8fafc;
-      color: #475569;
-      font-weight: 600;
-      border-right: 1px solid #e2e8f0;
-      white-space: nowrap;
+      width: 34%;
+      background: #f3f4f6;
+      color: #111827;
+      font-weight: 700;
+      border-right: 1px solid #e5e7eb;
     }
     .lv-value {
       color: #1e293b;
@@ -476,18 +430,35 @@ function _buildPdfHtml(data, dataHoje) {
     /* Títulos de seção dentro da tabela (outline SVG) */
     .sec-title-row td { border-bottom: none !important; }
     .sec-title {
-      background: #f1f5f9 !important;
-      color: #334155;
+      background: #e7f3f1 !important;
+      color: #0a6b63;
       font-weight: 700;
-      font-size: 8pt;
-      padding: 6px 14px !important;
-      border-top: 1px solid #e2e8f0;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      text-transform: uppercase;
-      letter-spacing: .4px;
+      font-size: 8.5pt;
+      padding: 8px 14px !important;
+      border-top: 1px solid #0a6b63;
     }
+
+    .sumario {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 28px;
+      font-size: 8pt;
+    }
+    .sumario th {
+      background: #0a6b63;
+      color: #ffffff;
+      text-align: left;
+      font-weight: 700;
+      padding: 8px 8px;
+    }
+    .sumario td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #d1d5db;
+      vertical-align: top;
+      color: #111827;
+    }
+    .sumario tbody tr:nth-child(even) td { background: #f3f4f6; }
+    .sumario .sum-n { width: 28px; font-weight: 700; color: #0a6b63; }
     /* ══ Rodapé de página ═══════════════════════════════════════════════════ */
     .page-footer {
       margin-top: 40px;
@@ -557,26 +528,26 @@ function _buildPdfHtml(data, dataHoje) {
     </div>
   </div>
 
-  <!-- Sumário executivo -->
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:24px;display:flex;gap:20px;flex-wrap:wrap;">
-    <div style="font-size:8pt;color:#64748b;">
-      <strong style="display:block;font-size:9pt;color:#0f9387;margin-bottom:4px;">Total de processos no relatório</strong>
-      <span style="font-size:18pt;font-weight:900;color:#0f9387;">${data.length}</span>
-    </div>
-    <div style="font-size:8pt;color:#64748b;border-left:2px solid #e2e8f0;padding-left:20px;">
-      <strong style="display:block;font-size:9pt;color:#dc2626;margin-bottom:4px;">Avaliação Obrigatória</strong>
-      <span style="font-size:18pt;font-weight:900;color:#dc2626;">${data.filter(r => r._statusFinal === 'avaliacao-obrigatoria').length}</span>
-    </div>
-    <div style="font-size:8pt;color:#64748b;border-left:2px solid #e2e8f0;padding-left:20px;flex:1;min-width:160px;">
-      <strong style="display:block;font-size:9pt;color:#334155;margin-bottom:4px;">Gerado em</strong>
-      <span style="font-size:10pt;font-weight:700;color:#334155;">${dataHoje}</span>
-    </div>
-  </div>
+  <h2 class="section-heading">Resumo</h2>
+  <p class="section-intro">${data.length} processos. A ordem desta lista é a mesma das fichas.</p>
+  <table class="sumario">
+    <thead>
+      <tr>
+        <th>Nº</th>
+        <th>Processo</th>
+        <th>Órgão</th>
+        <th>Etapa</th>
+        <th>Valor estimado</th>
+        <th>Assinado</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${linhasResumo}
+    </tbody>
+  </table>
 
-  <!-- Título da seção de análise -->
-  <h2 class="section-heading">
-    Fichas individuais — Processos com Avaliação de Integridade Obrigatória
-  </h2>
+  <h2 class="section-heading">Fichas</h2>
+  <p class="section-intro">Em cada ficha: o processo, o objeto, os valores, a situação e o motivo do enquadramento.</p>
 
   <!-- Fichas individuais -->
   ${fichas}
