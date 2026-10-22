@@ -5501,6 +5501,42 @@ tbody td {
   background: var(--surface);
   border-top: 1px solid var(--border);
 }
+
+.app-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 107, 99, 0.28);
+}
+.app-confirm[hidden] { display: none !important; }
+.app-confirm-card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 16px 40px rgba(10, 40, 36, 0.18);
+}
+.app-confirm-card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0a6b63;
+}
+.app-confirm-card p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #4b5563;
+}
+.app-confirm-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 .modal-container .modal-zone {
   padding: 22px;
   gap: 14px;

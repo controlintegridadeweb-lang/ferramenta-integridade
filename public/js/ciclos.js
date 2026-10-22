@@ -235,10 +235,12 @@ const Ciclos = (() => {
       return;
     }
 
-    const ok = window.confirm(
-      `Gerar o relatório com ${validados.length} registro(s) validado(s)?\n\n` +
-      'Isso encerra o ciclo: eles passam a FINALIZADO e saem da fila de análise.'
-    );
+    const ok = await pedirConfirmacao({
+      titulo: `Gerar o relatório com ${validados.length} registro(s)?`,
+      texto: 'Isso encerra o ciclo: eles passam a concluído e saem da fila de análise.',
+      ok: 'Gerar relatório',
+      cancelar: 'Voltar',
+    });
     if (!ok) return;
 
     const setVal = new Set(validados);

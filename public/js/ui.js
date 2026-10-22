@@ -53,6 +53,46 @@ function showToast(message, type = 'info', duration = 3500) {
   }, duration);
 }
 
+/**
+ * Confirmação dentro da tela, no visual do sistema.
+ * Substitui a caixa nativa do navegador.
+ * @returns {Promise<boolean>}
+ */
+function pedirConfirmacao({ titulo, texto, ok, cancelar }) {
+  const root = document.getElementById('appConfirm');
+  const tituloEl = document.getElementById('appConfirmTitulo');
+  const textoEl = document.getElementById('appConfirmTexto');
+  const okBtn = document.getElementById('appConfirmOk');
+  const cancelBtn = document.getElementById('appConfirmCancelar');
+  if (!root || !okBtn || !cancelBtn) return Promise.resolve(false);
+
+  if (tituloEl) tituloEl.textContent = titulo || '';
+  if (textoEl) textoEl.textContent = texto || '';
+  okBtn.textContent = ok || 'Confirmar';
+  cancelBtn.textContent = cancelar || 'Voltar';
+  root.hidden = false;
+
+  return new Promise(resolve => {
+    const fechar = (valor) => {
+      root.hidden = true;
+      okBtn.removeEventListener('click', noOk);
+      cancelBtn.removeEventListener('click', noCancelar);
+      root.removeEventListener('click', noFundo);
+      document.removeEventListener('keydown', noTecla);
+      resolve(valor);
+    };
+    const noOk = () => fechar(true);
+    const noCancelar = () => fechar(false);
+    const noFundo = (e) => { if (e.target === root) fechar(false); };
+    const noTecla = (e) => { if (e.key === 'Escape') fechar(false); };
+    okBtn.addEventListener('click', noOk);
+    cancelBtn.addEventListener('click', noCancelar);
+    root.addEventListener('click', noFundo);
+    document.addEventListener('keydown', noTecla);
+    okBtn.focus();
+  });
+}
+
 /** Exibe o overlay de carregamento com mensagem opcional. */
 function showLoading(msg) {
   if (msg) {

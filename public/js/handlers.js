@@ -864,7 +864,13 @@ async function concluirProcesso(globalIdx) {
     showToast('Responda todas as perguntas antes de concluir.', 'error', 4000);
     return;
   }
-  if (!window.confirm('Concluir este processo?\n\nEle sai da avaliação obrigatória e passa para Concluído.')) return;
+  const confirmar = await pedirConfirmacao({
+    titulo: 'Concluir este processo?',
+    texto: 'Ele sai da avaliação obrigatória e passa para Concluído.',
+    ok: 'Concluir',
+    cancelar: 'Voltar',
+  });
+  if (!confirmar) return;
 
   row._concluido = true;
   row._concluido_em = new Date().toISOString();
