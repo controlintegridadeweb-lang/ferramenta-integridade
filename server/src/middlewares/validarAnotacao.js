@@ -14,6 +14,8 @@ const CAMPOS_PERMITIDOS = {
   _contrato_assinado:      ['boolean', 'string', 'null'],
   _observacao_manual:      ['string', 'null'],
   _avaliacao_obrig_dados:  ['object', 'null'],
+  _concluido:              ['boolean', 'null'],
+  _concluido_em:           ['string', 'null'],
 };
 
 const MAX_UID_LEN     = 512;

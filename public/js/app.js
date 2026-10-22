@@ -264,4 +264,8 @@ window.App = {
   // Questionário de Avaliação Obrigatória
   applyAvaliacaoObrigatoria: applyAvaliacaoObrigatoria,
   clearAvaliacaoObrigatoria: clearAvaliacaoObrigatoria,
+  questaoEscolher:         questaoEscolher,
+  questaoVoltar:           questaoVoltar,
+  concluirProcesso:        concluirProcesso,
+  desfazerConclusao:       desfazerConclusao,
 };

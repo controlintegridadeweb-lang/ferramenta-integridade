@@ -273,7 +273,7 @@ const Ciclos = (() => {
      uids VALIDADO informados. Aqui informamos um único uid. Mesma numeração,
      PDF e imutabilidade do lote — sem caminho paralelo de finalização.
      ═══════════════════════════════════════════════════════════════════════ */
-  async function finalizarRegistroFluxo(uid) {
+  async function finalizarRegistroFluxo(uid, opts) {
     if (!_ativo) { _toast('Persistência indisponível.', 'error'); return; }
     if (!uid) return;
 
@@ -286,13 +286,14 @@ const Ciclos = (() => {
     const linha = (State.allData || []).filter(r => r._uid === uid);
     if (linha.length === 0) { _toast('Registro não encontrado na planilha atual.', 'error'); return; }
 
-    if (typeof showLoading === 'function') showLoading('Finalizando registro e gerando PDF…');
+    const abrirPdf = !opts || opts.abrirPdf !== false;
+    if (typeof showLoading === 'function') showLoading((opts && opts.mensagem) || 'Finalizando registro e gerando PDF…');
     try {
       const html = _montarHtmlRelatorio(linha);
       const rel = await gerarRelatorio([uid], html);
       if (typeof hideLoading === 'function') hideLoading();
 
-      _toast(`Registro finalizado no relatório #${String(rel.numero).padStart(3, '0')}.`, 'success', 6000);
+      _toast((opts && opts.mensagemOk) || `Registro finalizado no relatório #${String(rel.numero).padStart(3, '0')}.`, 'success', 6000);
       if (rel._avisoPdf) _toast(rel._avisoPdf, 'error', 9000);
 
       if (typeof closeModal === 'function') closeModal();
@@ -300,7 +301,7 @@ const Ciclos = (() => {
       if (typeof applyFilters === 'function') applyFilters();
       if (typeof _updateAllStats === 'function') _updateAllStats();
 
-      if (rel.pdf_url) window.open(rel.pdf_url, '_blank');
+      if (abrirPdf && rel.pdf_url) window.open(rel.pdf_url, '_blank');
     } catch (e) {
       if (typeof hideLoading === 'function') hideLoading();
       _toast(`Falha ao finalizar registro: ${e.message || e}`, 'error', 6000);

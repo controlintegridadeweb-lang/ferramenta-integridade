@@ -809,7 +809,10 @@ main {
 .ciclo-card--relatorio .card-pill,
 .step-card:nth-child(4) .card-pill,
 .summary-card--success .card-pill,
+.summary-card--concluido .card-pill,
 .ciclo-card--validado .card-pill { background: #0a6b63; }
+
+.summary-card--concluido::before { background: linear-gradient(90deg, #0a6b63, #14b8a6); }
 
 .criterio-badge {
   order: 5;
@@ -1235,6 +1238,7 @@ main {
   gap: 16px;
 }
 .summary-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.summary-grid--5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 .summary-card {
   background: #fff;
@@ -1642,7 +1646,8 @@ tbody td {
 .row-obrigatoria,
 .row-dispensada,
 .row-verificacao,
-.row-nao-enquadrado { border-left: none; }
+.row-nao-enquadrado,
+.row-concluido { border-left: none; }
 
 /* Tags na tabela */
 .tag {
@@ -1693,6 +1698,7 @@ tbody td {
 /* Status tags */
 .status-obrigatoria    { background: var(--danger-soft);  color: var(--danger);  border: 1px solid var(--danger-bd); }
 .status-dispensada     { background: var(--success-bg);   color: var(--success); border: 1px solid var(--success-bd); }
+.status-concluido      { background: #e7f3f1; color: #0a6b63; border: 1px solid #b7ddd6; }
 .status-verificacao    { background: var(--warning-bg);   color: var(--warning); border: 1px solid var(--warning-bd); }
 .status-nao-enquadrado { background: var(--muted-bg);     color: var(--muted);   border: 1px solid var(--border-2); }
 .status-nao-enquadrado-art1 { background: var(--indigo-bg); color: var(--indigo); border: 1px solid var(--indigo-bd); }
@@ -2068,6 +2074,13 @@ tbody td {
   background: var(--indigo-bg);
   border-color: var(--indigo-bd);
 }
+.modal-status-final.concluido,
+.modal-status-final.questionario-pronto {
+  background: #e7f3f1;
+  border-color: #b7ddd6;
+}
+.modal-status-final.concluido .modal-status-title,
+.modal-status-final.questionario-pronto .modal-status-title { color: #0a6b63; }
 
 .modal-status-icon {
   width: 44px; height: 44px;
@@ -2699,6 +2712,42 @@ tbody td {
 .btn-aval-obrig-apply:hover { background: var(--brand-mid); box-shadow: none; transform: none; }
 .btn-aval-obrig-apply:disabled { opacity: .45; cursor: default; box-shadow: none; }
 
+.q-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  min-height: 32px;
+}
+.q-progress {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #0a6b63;
+}
+.q-back {
+  border: 0;
+  background: transparent;
+  color: #0a6b63;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+}
+.q-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+.q-step[hidden] { display: none !important; }
+.q-step .aval-obrig-q-label { margin-bottom: 10px; }
+.q-step .aval-obrig-opt-text { font-size: 15px; }
+.q-step .aval-obrig-actions { margin-top: 14px; }
+
 /* Secondary / clear */
 .btn-aval-obrig-clear {
   display: inline-flex; align-items: center; gap: 7px;
@@ -3219,6 +3268,7 @@ button.an-kpi-card:hover { border-color: var(--brand); background: var(--brand-5
    ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {
   .criterios-grid { grid-template-columns: 1fr; }
+  .summary-grid--5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 960px) {
   .header-inner { gap: 12px; }
@@ -3267,7 +3317,8 @@ button.an-kpi-card:hover { border-color: var(--brand); background: var(--brand-5
 
   /* Panorama */
   .panorama-section    { margin-bottom: 20px; }
-  .summary-grid--4     { grid-template-columns: repeat(2, 1fr); }
+  .summary-grid--4,
+  .summary-grid--5     { grid-template-columns: repeat(2, 1fr); }
   .summary-count       { font-size: 28px; }
 
   /* Inciso */
@@ -3333,7 +3384,8 @@ button.an-kpi-card:hover { border-color: var(--brand); background: var(--brand-5
   .btn-upload     { justify-content: center; }
 
   /* Cards */
-  .summary-grid--4 { grid-template-columns: 1fr; }
+  .summary-grid--4,
+  .summary-grid--5 { grid-template-columns: 1fr; }
   .inciso-grid     { grid-template-columns: 1fr; }
   .an-kpi-grid     { grid-template-columns: 1fr; }
 

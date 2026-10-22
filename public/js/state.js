@@ -91,6 +91,8 @@ function bindDOM() {
   DOM.pctVerificacao      = document.getElementById('pctVerificacao');
   DOM.pctNaoEnquadrado    = document.getElementById('pctNaoEnquadrado');
   DOM.pctDispensada       = document.getElementById('pctDispensada');
+  DOM.countConcluidos     = document.getElementById('countConcluidos');
+  DOM.pctConcluidos       = document.getElementById('pctConcluidos');
 
   // ── Detalhamento Art. 2º — contadores secundários ────────────────────────
   DOM.countI2  = document.getElementById('countI2');

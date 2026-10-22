@@ -484,7 +484,7 @@
           Panorama geral — <span id="panoramaTotalLabel">todos os contratos</span>
         </div>
 
-        <section class="summary-grid summary-grid--4" aria-label="Panorama geral por status">
+        <section class="summary-grid summary-grid--5" aria-label="Panorama geral por status">
 
           <!-- Avaliação Obrigatória -->
           <article class="summary-card summary-card--danger" data-filter="avaliacao-obrigatoria"
@@ -544,6 +544,20 @@
             <div class="summary-desc">Enquadra no Art. 2º, mas dispensado pelo Art. 8º. Clique para filtrar.</div>
             <span class="card-pill">Filtrar</span>
             <div class="active-indicator" style="color:var(--success)"></div>
+          </article>
+
+          <article class="summary-card summary-card--concluido" data-filter="concluido"
+                   onclick="App.setActiveFilter('concluido')"
+                   role="button" tabindex="0"
+                   aria-label="Filtrar: Concluídos">
+            <div class="summary-card-header">
+              <span class="summary-card-pct" id="pctConcluidos"></span>
+            </div>
+            <div class="summary-count" id="countConcluidos">0</div>
+            <div class="summary-title">Concluídos</div>
+            <div class="summary-desc">Questionário respondido e processo encerrado. Clique para filtrar.</div>
+            <span class="card-pill">Filtrar</span>
+            <div class="active-indicator" style="color:var(--brand-dark)"></div>
           </article>
 
         </section>
@@ -680,6 +694,7 @@
               <option value="verificacao-humana">Verificação pendente</option>
               <option value="nao-enquadrado">Não enquadrado (Art. 2º)</option>
               <option value="nao-enquadrado-art1">Órgão excluído (Art. 1º)</option>
+              <option value="concluido">Concluído</option>
             </select>
           </div>
 

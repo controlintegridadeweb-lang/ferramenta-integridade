@@ -32,6 +32,8 @@ const Supa = (() => {
     '_contrato_assinado',
     '_observacao_manual',
     '_avaliacao_obrig_dados',
+    '_concluido',
+    '_concluido_em',
   ];
 
   /* ── Chave estável por linha (idêntica à lógica anterior) ───────────────── */

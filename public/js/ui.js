@@ -113,7 +113,17 @@ function buildReasonTags(reasons, { compact = false } = {}) {
  * @param {Object} row — linha classificada
  * @returns {string} HTML
  */
+/** Processo encerrado pelo analista: sai da fila de avaliação obrigatória. */
+function registroConcluido(row) {
+  if (!row) return false;
+  if (row._concluido) return true;
+  return !!(window.Ciclos && Ciclos.ativo() && row._uid && Ciclos.statusDe(row._uid) === 'FINALIZADO');
+}
+
 function buildStatusFinalBadge(row) {
+  if (registroConcluido(row)) {
+    return `<span class="tag status-badge status-concluido">Concluído</span>`;
+  }
   const meta = Classifier.STATUS_FINAL_META[row._statusFinal];
   if (!meta) return '';
   const manualDot = (row._data_referencia_manual || row._valor_manual || row._validacao_art8)
@@ -136,6 +146,7 @@ const CICLO_STAGE_META = {
   VALIDADO:   { label: 'Validado',    cls: 'ciclo-stage--validado',  icon: 'checkCircle' },
 };
 function buildCicloStageBadge(row) {
+  if (registroConcluido(row)) return '';
   if (!(window.Ciclos && Ciclos.ativo()) || row._statusFinal !== 'avaliacao-obrigatoria' || !row._uid) {
     return '';
   }
@@ -203,15 +214,13 @@ function _updateAllStats() {
   // (que oculta finalizados) e com o card "Pendentes de Análise" da aba Geral,
   // descontamos os obrigatórios já finalizados. É só ajuste de exibição — a
   // classificação jurídica permanece intacta.
-  let _obrigFinalizados = 0;
-  if (window.Ciclos && Ciclos.ativo()) {
-    _obrigFinalizados = State.allData.filter(r =>
-      r && r._uid &&
-      r._statusFinal === 'avaliacao-obrigatoria' &&
-      Ciclos.statusDe(r._uid) === 'FINALIZADO'
-    ).length;
-  }
-  const avalObrigAtivo = Math.max(0, c.avaliacaoObrigatoria - _obrigFinalizados);
+  let concluidos = 0;
+  let avalObrigAtivo = 0;
+  (State.allData || []).forEach(r => {
+    if (!r) return;
+    if (registroConcluido(r)) concluidos++;
+    else if (r._statusFinal === 'avaliacao-obrigatoria') avalObrigAtivo++;
+  });
 
   // Pílulas do header
   if (DOM.statTotal)       DOM.statTotal.textContent       = c.total.toLocaleString('pt-BR');
@@ -247,10 +256,12 @@ function _updateAllStats() {
 
   //Percentuais dos summary cards
   const _pct = (n, tot) => tot > 0 ? Math.round(n / tot * 100) + '%' : '';
+  if (DOM.countConcluidos)  DOM.countConcluidos.textContent  = concluidos.toLocaleString('pt-BR');
   if (DOM.pctAvalObrig)     DOM.pctAvalObrig.textContent     = _pct(avalObrigAtivo, c.total);
   if (DOM.pctVerificacao)   DOM.pctVerificacao.textContent   = _pct(c.verificacaoHumana, c.total);
   if (DOM.pctNaoEnquadrado) DOM.pctNaoEnquadrado.textContent = _pct(totalNaoEnq, c.total);
   if (DOM.pctDispensada)    DOM.pctDispensada.textContent    = _pct(c.dispensada, c.total);
+  if (DOM.pctConcluidos)    DOM.pctConcluidos.textContent    = _pct(concluidos, c.total);
   if (typeof updateWorkQueue === 'function') updateWorkQueue();
 }
 
@@ -269,6 +280,7 @@ const FILTER_LABELS = {
   'art2-II': 'Art. 2º · Inciso II',
   'art2-p1': 'Art. 2º · § 1º',
   'art2-p2': 'Art. 2º · § 2º',
+  'concluido': 'Concluídos',
 };
 
 function setActiveFilter(filter) {
@@ -423,7 +435,7 @@ const ROW_CLASS_MAP = {
  */
 function _buildTableRow(row, globalIdx) {
   const statusBadge = buildStatusFinalBadge(row);
-  const baseClass   = ROW_CLASS_MAP[row._statusFinal] || '';
+  const baseClass   = registroConcluido(row) ? 'row-concluido' : (ROW_CLASS_MAP[row._statusFinal] || '');
 
   return `<tr class="${baseClass} table-row" onclick="App.openModal(${globalIdx})">
     <td class="td-edital">${escapeHtml(row.numero_ano_edital || '—')}</td>
@@ -957,30 +969,10 @@ function _buildContratoCell(row, globalIdx) {
 /** Rótulos legíveis para categorias do processo (Avaliação Obrigatória) */
 const AVALIACAO_OBRIG_CATEGORIAS = {
   licitacao_andamento:    'Licitação em andamento',
-  adjudicado_fornecedor:  'Processo adjudicado com seleção de fornecedor',
-  contrato_firmado:       'Contrato firmado (com assinatura)',
+  adjudicado_fornecedor:  'Fornecedor já escolhido',
+  contrato_firmado:       'Contrato assinado, sem execução',
   contrato_execucao:      'Contrato em execução',
 };
-
-/**
- * Botão "Finalizar este registro", exibido no resumo de um questionário
- * completo SOMENTE quando o fluxo por ciclos está ativo e o registro está
- * VALIDADO. Finalizar individualmente gera um relatório de lote com um único
- * uid — reaproveitando o mesmo caminho do relatório em lote (mesma numeração,
- * PDF e imutabilidade no back-end), sem criar um fluxo paralelo de finalização.
- * @param {Object} row
- * @param {number} globalIdx
- * @returns {string} HTML (vazio quando não aplicável)
- */
-function _botaoFinalizarRegistro(row, globalIdx) {
-  if (!(window.Ciclos && Ciclos.ativo()) || !row._uid) return '';
-  if (Ciclos.statusDe(row._uid) !== 'VALIDADO') return '';
-  return `<button class="btn-aval-obrig-finalizar"
-            onclick="App.finalizarRegistro(${globalIdx})"
-            title="Gera o relatório deste registro e o encerra (vira histórico permanente)">
-            ${Icons.get('fileCheck', 12)} Finalizar este registro
-          </button>`;
-}
 
 /**
  * Constrói o bloco de perguntas adicionais exibido no modal
@@ -1038,180 +1030,144 @@ function buildAvaliacaoObrigatoriaBlock(row, globalIdx) {
     const adjLabel = dados.valor_adjudicacao === 'sim' ? 'Sim' : (dados.valor_adjudicacao === 'nao' ? 'Não' : '—');
     const ctrLabel = dados.contrato_assinado === 'sim' ? 'Sim' : (dados.contrato_assinado === 'nao' ? 'Não' : '—');
 
+    const jaConcluido = registroConcluido(row);
+    const cicloFechado = !!(window.Ciclos && Ciclos.ativo() && row._uid && Ciclos.statusDe(row._uid) === 'FINALIZADO');
+
     return `
-      <p class="modal-kicker">Avaliação obrigatória</p>
       <div class="modal-aval-obrig-block modal-aval-obrig-block--done">
         <div class="aval-obrig-header">
           ${Icons.get('checkCircle', 15)}
           <div>
-            <strong>Questionário Preenchido</strong>
-            <span>As respostas abaixo serão exportadas no relatório PDF e no CSV.</span>
+            <strong>${jaConcluido ? 'Processo concluído' : 'Respostas salvas'}</strong>
+            <span>${jaConcluido
+              ? 'Este processo saiu da avaliação obrigatória.'
+              : 'Confira e conclua. Ele sai da avaliação obrigatória e passa para Concluído.'}</span>
           </div>
         </div>
         <div class="aval-obrig-resumo">
           <div class="aval-obrig-resumo-item">
-            <span class="aval-obrig-resumo-label">O contrato foi interrompido?</span>
+            <span class="aval-obrig-resumo-label">Contrato interrompido</span>
             <span class="aval-obrig-resumo-val">Não</span>
           </div>
           <div class="aval-obrig-resumo-item">
-            <span class="aval-obrig-resumo-label">Categoria do processo</span>
+            <span class="aval-obrig-resumo-label">Etapa</span>
             <span class="aval-obrig-resumo-val">${escapeHtml(catLabel)}</span>
           </div>
           <div class="aval-obrig-resumo-item">
-            <span class="aval-obrig-resumo-label">Existe valor de adjudicação?</span>
+            <span class="aval-obrig-resumo-label">Valor de adjudicação</span>
             <span class="aval-obrig-resumo-val">${escapeHtml(adjLabel)}</span>
           </div>
           <div class="aval-obrig-resumo-item">
-            <span class="aval-obrig-resumo-label">Contrato assinado?</span>
+            <span class="aval-obrig-resumo-label">Contrato assinado</span>
             <span class="aval-obrig-resumo-val">${escapeHtml(ctrLabel)}</span>
           </div>
         </div>
+        ${jaConcluido ? (cicloFechado ? '' : `
         <div class="aval-obrig-acoes">
-          <button class="btn-aval-obrig-clear"
-            onclick="App.clearAvaliacaoObrigatoria(${globalIdx})">
-            ${Icons.get('close', 12)} Refazer questionário
+          <button class="btn-aval-obrig-clear" onclick="App.desfazerConclusao(${globalIdx})">
+            Desfazer conclusão
           </button>
-          ${_botaoFinalizarRegistro(row, globalIdx)}
-        </div>
+        </div>`) : `
+        <div class="aval-obrig-acoes">
+          <button class="btn-aval-obrig-apply" onclick="App.concluirProcesso(${globalIdx})">
+            ${Icons.get('checkCircle', 14)} Concluir processo
+          </button>
+          <button class="btn-aval-obrig-clear" onclick="App.clearAvaliacaoObrigatoria(${globalIdx})">
+            Refazer
+          </button>
+        </div>`}
       </div>`;
   }
 
-  // ── Formulário de preenchimento ──────────────────────────────────────────
+  // ── Uma pergunta por vez ────────────────────────────────────────────────
   return `
-    <p class="modal-kicker">Avaliação obrigatória</p>
-    <div class="modal-aval-obrig-block">
-      <div class="aval-obrig-header">
-        ${Icons.get('clipboard', 15)}
-        <div>
-          <strong>Questionário Obrigatório</strong>
-          <span>Preencha as informações abaixo para complementar a análise deste processo.
-          As respostas serão exportadas no relatório.</span>
+    <p class="modal-kicker">Questionário</p>
+    <div class="modal-aval-obrig-block" id="qWizard" data-atual="1">
+      <div class="q-top">
+        <button type="button" class="q-back" id="qBack" hidden onclick="App.questaoVoltar()">Voltar</button>
+        <span class="q-progress" id="qProgress">Pergunta 1 de 4</span>
+      </div>
+
+      <div class="q-step" data-q="1">
+        <p class="aval-obrig-q-label"><strong>O contrato foi interrompido?</strong></p>
+        <div class="aval-obrig-options aval-obrig-options--inline">
+          <label class="aval-obrig-opt aval-obrig-opt--compact" onclick="App.questaoEscolher('interrompido', 'nao')">
+            <input type="radio" name="avalObrigInterrompido" value="nao">
+            <span class="aval-obrig-opt-text">Não</span>
+          </label>
+          <label class="aval-obrig-opt aval-obrig-opt--compact" onclick="App.questaoEscolher('interrompido', 'sim')">
+            <input type="radio" name="avalObrigInterrompido" value="sim">
+            <span class="aval-obrig-opt-text">Sim</span>
+          </label>
         </div>
       </div>
 
-      <!-- Pergunta 1: Contrato interrompido (DECIDE O FLUXO) -->
-      <div class="aval-obrig-question">
-        <label class="aval-obrig-q-label">
-          ${Icons.get('alertTriangle', 13)}
-          <strong>1. O contrato foi interrompido?</strong>
-        </label>
+      <div class="q-step" data-q="motivo" hidden>
+        <p class="aval-obrig-q-label"><strong>Qual o motivo da interrupção?</strong></p>
+        <textarea id="avalObrigMotivoInput" class="aval-obrig-textarea" rows="3" maxlength="1000"
+          placeholder="Descreva o motivo em poucas linhas"
+          aria-label="Motivo da interrupção do contrato"></textarea>
+        <p class="q-hint">Ao salvar, este processo sai da avaliação obrigatória e vai para fora do escopo.</p>
+        <div class="aval-obrig-actions">
+          <button type="button" class="btn-aval-obrig-apply" onclick="App.applyAvaliacaoObrigatoria(${globalIdx})">
+            Salvar e tirar da avaliação
+          </button>
+        </div>
+      </div>
+
+      <div class="q-step" data-q="2" hidden>
+        <p class="aval-obrig-q-label"><strong>Em que etapa está o processo?</strong></p>
+        <div class="aval-obrig-options">
+          <label class="aval-obrig-opt" onclick="App.questaoEscolher('categoria', 'licitacao_andamento')">
+            <input type="radio" name="avalObrigCategoria" value="licitacao_andamento">
+            <span class="aval-obrig-opt-text">Licitação em andamento</span>
+          </label>
+          <label class="aval-obrig-opt" onclick="App.questaoEscolher('categoria', 'adjudicado_fornecedor')">
+            <input type="radio" name="avalObrigCategoria" value="adjudicado_fornecedor">
+            <span class="aval-obrig-opt-text">Fornecedor já escolhido</span>
+          </label>
+          <label class="aval-obrig-opt" onclick="App.questaoEscolher('categoria', 'contrato_firmado')">
+            <input type="radio" name="avalObrigCategoria" value="contrato_firmado">
+            <span class="aval-obrig-opt-text">Contrato assinado, sem execução</span>
+          </label>
+          <label class="aval-obrig-opt" onclick="App.questaoEscolher('categoria', 'contrato_execucao')">
+            <input type="radio" name="avalObrigCategoria" value="contrato_execucao">
+            <span class="aval-obrig-opt-text">Contrato em execução</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="q-step" data-q="3" hidden>
+        <p class="aval-obrig-q-label"><strong>Já existe valor de adjudicação?</strong></p>
         <div class="aval-obrig-options aval-obrig-options--inline">
-          <label class="aval-obrig-opt aval-obrig-opt--compact">
-            <input type="radio" name="avalObrigInterrompido" value="sim"
-              onchange="document.getElementById('avalObrigMotivoWrap').style.display='block'; document.getElementById('avalObrigFluxoNormal').style.display='none';">
-            <span class="aval-obrig-opt-icon">${Icons.get('checkCircle', 13)}</span>
+          <label class="aval-obrig-opt aval-obrig-opt--compact" onclick="App.questaoEscolher('adjudicacao', 'sim')">
+            <input type="radio" name="avalObrigAdjudicacao" value="sim">
             <span class="aval-obrig-opt-text">Sim</span>
           </label>
-          <label class="aval-obrig-opt aval-obrig-opt--compact">
-            <input type="radio" name="avalObrigInterrompido" value="nao"
-              onchange="document.getElementById('avalObrigMotivoWrap').style.display='none'; document.getElementById('avalObrigFluxoNormal').style.display='block';">
-            <span class="aval-obrig-opt-icon">${Icons.get('xCircle', 13)}</span>
+          <label class="aval-obrig-opt aval-obrig-opt--compact" onclick="App.questaoEscolher('adjudicacao', 'nao')">
+            <input type="radio" name="avalObrigAdjudicacao" value="nao">
             <span class="aval-obrig-opt-text">Não</span>
           </label>
         </div>
       </div>
 
-      <!-- Pergunta 2 (se interrompido): Motivo da interrupção -->
-      <div class="aval-obrig-question" id="avalObrigMotivoWrap" style="display:none;">
-        <label class="aval-obrig-q-label">
-          ${Icons.get('messageSquare', 13)}
-          <strong>2. Qual o motivo da interrupção do contrato?</strong>
-        </label>
-        <textarea
-          id="avalObrigMotivoInput"
-          class="aval-obrig-textarea"
-          rows="3"
-          maxlength="1000"
-          placeholder="Descreva o motivo da interrupção do contrato… (máx. 1000 caracteres)"
-          aria-label="Motivo da interrupção do contrato"
-        ></textarea>
-        <p class="aval-obrig-interrupcao-aviso" style="margin-top:8px;font-size:12px;color:#b45309;display:flex;align-items:flex-start;gap:6px;">
-          ${Icons.get('info', 12)}
-          <span>Ao salvar, este processo será automaticamente direcionado para <strong>fora do escopo</strong> da Avaliação de Integridade Obrigatória.</span>
-        </p>
-      </div>
-
-      <!-- Bloco de perguntas adicionais (apenas se NÃO interrompido) -->
-      <div id="avalObrigFluxoNormal" style="display:none;">
-
-        <!-- Pergunta 2: Categoria do processo -->
-        <div class="aval-obrig-question">
-          <label class="aval-obrig-q-label">
-            ${Icons.get('tag', 13)}
-            <strong>2. Em qual categoria o processo se encontra?</strong>
+      <div class="q-step" data-q="4" hidden>
+        <p class="aval-obrig-q-label"><strong>O contrato já foi assinado?</strong></p>
+        <div class="aval-obrig-options aval-obrig-options--inline">
+          <label class="aval-obrig-opt aval-obrig-opt--compact">
+            <input type="radio" name="avalObrigContratoAssinado" value="sim">
+            <span class="aval-obrig-opt-text">Sim</span>
           </label>
-          <div class="aval-obrig-options">
-            <label class="aval-obrig-opt">
-              <input type="radio" name="avalObrigCategoria" value="licitacao_andamento">
-              <span class="aval-obrig-opt-icon">${Icons.get('activity', 13)}</span>
-              <span class="aval-obrig-opt-text">Licitação em andamento</span>
-            </label>
-            <label class="aval-obrig-opt">
-              <input type="radio" name="avalObrigCategoria" value="adjudicado_fornecedor">
-              <span class="aval-obrig-opt-icon">${Icons.get('checkCircle', 13)}</span>
-              <span class="aval-obrig-opt-text">Processo adjudicado com seleção de fornecedor</span>
-            </label>
-            <label class="aval-obrig-opt">
-              <input type="radio" name="avalObrigCategoria" value="contrato_firmado">
-              <span class="aval-obrig-opt-icon">${Icons.get('pen', 13)}</span>
-              <span class="aval-obrig-opt-text">Contrato firmado (com assinatura)</span>
-            </label>
-            <label class="aval-obrig-opt">
-              <input type="radio" name="avalObrigCategoria" value="contrato_execucao">
-              <span class="aval-obrig-opt-icon">${Icons.get('zap', 13)}</span>
-              <span class="aval-obrig-opt-text">Contrato em execução</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Pergunta 3: Valor de adjudicação -->
-        <div class="aval-obrig-question">
-          <label class="aval-obrig-q-label">
-            ${Icons.get('dollarSign', 13)}
-            <strong>3. Existe valor de adjudicação?</strong>
+          <label class="aval-obrig-opt aval-obrig-opt--compact">
+            <input type="radio" name="avalObrigContratoAssinado" value="nao">
+            <span class="aval-obrig-opt-text">Não</span>
           </label>
-          <div class="aval-obrig-options aval-obrig-options--inline">
-            <label class="aval-obrig-opt aval-obrig-opt--compact">
-              <input type="radio" name="avalObrigAdjudicacao" value="sim">
-              <span class="aval-obrig-opt-icon">${Icons.get('checkCircle', 13)}</span>
-              <span class="aval-obrig-opt-text">Sim</span>
-            </label>
-            <label class="aval-obrig-opt aval-obrig-opt--compact">
-              <input type="radio" name="avalObrigAdjudicacao" value="nao">
-              <span class="aval-obrig-opt-icon">${Icons.get('xCircle', 13)}</span>
-              <span class="aval-obrig-opt-text">Não</span>
-            </label>
-          </div>
         </div>
-
-        <!-- Pergunta 4: Contrato assinado -->
-        <div class="aval-obrig-question">
-          <label class="aval-obrig-q-label">
-            ${Icons.get('pen', 13)}
-            <strong>4. O contrato já foi assinado?</strong>
-          </label>
-          <div class="aval-obrig-options aval-obrig-options--inline">
-            <label class="aval-obrig-opt aval-obrig-opt--compact">
-              <input type="radio" name="avalObrigContratoAssinado" value="sim">
-              <span class="aval-obrig-opt-icon">${Icons.get('checkCircle', 13)}</span>
-              <span class="aval-obrig-opt-text">Sim</span>
-            </label>
-            <label class="aval-obrig-opt aval-obrig-opt--compact">
-              <input type="radio" name="avalObrigContratoAssinado" value="nao">
-              <span class="aval-obrig-opt-icon">${Icons.get('xCircle', 13)}</span>
-              <span class="aval-obrig-opt-text">Não</span>
-            </label>
-          </div>
+        <div class="aval-obrig-actions">
+          <button type="button" class="btn-aval-obrig-apply" onclick="App.applyAvaliacaoObrigatoria(${globalIdx})">
+            Salvar respostas
+          </button>
         </div>
-
-      </div><!-- /avalObrigFluxoNormal -->
-
-      <!-- Botão Salvar -->
-      <div class="aval-obrig-actions">
-        <button class="btn-aval-obrig-apply"
-          onclick="App.applyAvaliacaoObrigatoria(${globalIdx})">
-          ${Icons.get('checkCircle', 14)} Salvar Respostas
-        </button>
       </div>
     </div>`;
 }
@@ -1266,6 +1222,11 @@ function openModal(globalIdx) {
   const precisaArt8  = !precisaValor && row._art8 === 'pendente-validacao';
   const precisaQuestionario = (row._statusFinal === 'avaliacao-obrigatoria' || row._interrompido)
     && !row._avaliacao_obrig_dados;
+  const dadosQ = row._avaliacao_obrig_dados;
+  const questionarioPronto = !!(dadosQ && dadosQ.contrato_interrompido === 'nao'
+    && dadosQ.categoria && dadosQ.valor_adjudicacao && dadosQ.contrato_assinado);
+  const concluido = registroConcluido(row);
+  const podeConcluir = questionarioPronto && !concluido && row._statusFinal === 'avaliacao-obrigatoria';
   const showArt8Resolvido = (row._requerAlice || isSig) && row._art8 !== 'nao-aplicavel' && !precisaArt8;
   const showDataRefCtx  = !isSig && row._requerAlice &&
     (row._art8 === 'sem-data' || !!row._data_referencia_manual);
@@ -1298,7 +1259,7 @@ function openModal(globalIdx) {
   const acaoHtml = [
     precisaValor ? buildSigilosoBlock(row, globalIdx, hasManual) : '',
     precisaArt8 ? buildArt8ValidationBlock(row, globalIdx) : '',
-    precisaQuestionario ? buildAvaliacaoObrigatoriaBlock(row, globalIdx) : '',
+    (precisaQuestionario || questionarioPronto) ? buildAvaliacaoObrigatoriaBlock(row, globalIdx) : '',
     row._motivoAditivoValorBaixo
       ? `<p class="modal-status-desc">${escapeHtml(row._motivoAditivoValorBaixo)}</p>` : '',
   ].join('');
@@ -1307,9 +1268,9 @@ function openModal(globalIdx) {
     ${_modalNavHtml(globalIdx)}
 
     <div class="modal-zone modal-zone--resultado">
-      <div class="modal-status-final ${row._statusFinal}">
-        <p class="modal-kicker">${precisaValor || precisaArt8 || precisaQuestionario ? 'Falta fazer' : 'Resultado'}</p>
-        <h3 class="modal-status-title">${statusMeta.tableLabel || statusMeta.label || row._statusFinal}</h3>
+      <div class="modal-status-final ${concluido ? 'concluido' : (podeConcluir ? 'questionario-pronto' : row._statusFinal)}">
+        <p class="modal-kicker">${concluido ? 'Resultado' : (podeConcluir ? 'Próximo passo' : (precisaValor || precisaArt8 || precisaQuestionario ? 'Falta fazer' : 'Resultado'))}</p>
+        <h3 class="modal-status-title">${concluido ? 'Concluído' : (podeConcluir ? 'Questionário respondido' : (statusMeta.tableLabel || statusMeta.label || row._statusFinal))}</h3>
       </div>
       ${acaoHtml}
     </div>
@@ -1335,8 +1296,8 @@ function openModal(globalIdx) {
         ${buildSigilosoBlock(row, globalIdx, hasManual)}
       </details>` : ''}
 
-      ${row._avaliacao_obrig_dados ? `
-      <details class="modal-more">
+      ${row._avaliacao_obrig_dados && !questionarioPronto ? `
+      <details class="modal-more" open>
         <summary>Questionário</summary>
         ${buildAvaliacaoObrigatoriaBlock(row, globalIdx)}
       </details>` : ''}

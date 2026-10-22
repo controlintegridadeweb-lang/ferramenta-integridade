@@ -21,15 +21,15 @@ function applyFilters() {
 
   State.filteredData = State.allData.filter(row => {
 
-    // ── Regra de ciclo: registros FINALIZADOS saem da fila de trabalho ────
-    // Uma busca explícita ainda encontra o processo, senão o número parece inexistente.
-    if (!search && window.Ciclos && Ciclos.ativo()) {
-      if (Ciclos.statusDe(row._uid) === 'FINALIZADO') return false;
-    }
+    // Concluídos saem da avaliação obrigatória. A busca e o filtro Concluído ainda os mostram.
+    const concluido = typeof registroConcluido === 'function' && registroConcluido(row);
+    const querConcluidos = filter === 'concluido' || statusVal === 'concluido';
+    if (concluido && !search && !querConcluidos) return false;
+    if (querConcluidos && !concluido) return false;
 
     // ── Filtro pelo card de status ativo ──────────────────────────────────
     // [v5.3] filter=null → sem filtro de card (mostra todos os registros)
-    if (filter) {
+    if (filter && filter !== 'concluido') {
       if      (filter === 'avaliacao-obrigatoria' && row._statusFinal !== 'avaliacao-obrigatoria') return false;
       else if (filter === 'dispensada'            && row._statusFinal !== 'dispensada')            return false;
       else if (filter === 'verificacao-humana'    && row._statusFinal !== 'verificacao-humana')    return false;
@@ -45,7 +45,7 @@ function applyFilters() {
     }
 
     // ── Filtro dropdown de status ─────────────────────────────────────────
-    if (statusVal && row._statusFinal !== statusVal) return false;
+    if (statusVal && statusVal !== 'concluido' && row._statusFinal !== statusVal) return false;
 
     // ── Busca textual (edital, UASG, objeto, processo, modalidade, código) ─
     // Números de processo vêm como 00110033.000251/2025-71. A busca sem o ponto
@@ -749,21 +749,119 @@ function applyAvaliacaoObrigatoria(globalIdx) {
   const newIdx = State.filteredData.indexOf(row);
   if (newIdx !== -1) {
     openModal(newIdx);
-    showToast('Questionário de Avaliação Obrigatória salvo com sucesso.', 'success', 4000);
+    showToast('Respostas salvas. Agora conclua o processo.', 'success', 4000);
   } else {
     closeModal();
     showToast('Questionário salvo — registro movido para outra categoria.', 'success', 5000);
   }
 }
 
-/**
- * Remove as respostas do questionário de Avaliação Obrigatória e reabre o modal.
- * @param {number} globalIdx
- */
+function questaoEscolher(campo, valor) {
+  const nomes = {
+    interrompido: 'avalObrigInterrompido',
+    categoria: 'avalObrigCategoria',
+    adjudicacao: 'avalObrigAdjudicacao',
+  };
+  const name = nomes[campo];
+  if (name) {
+    const input = document.querySelector(`input[name="${name}"][value="${valor}"]`);
+    if (input) input.checked = true;
+  }
+  if (campo === 'interrompido') questaoIr(valor === 'sim' ? 'motivo' : '2');
+  else if (campo === 'categoria') questaoIr('3');
+  else if (campo === 'adjudicacao') questaoIr('4');
+}
+
+function questaoIr(id) {
+  document.querySelectorAll('#qWizard .q-step').forEach(el => {
+    el.hidden = el.dataset.q !== id;
+  });
+  const wizard = document.getElementById('qWizard');
+  if (wizard) wizard.dataset.atual = id;
+  const marcado = document.querySelector('input[name="avalObrigInterrompido"]:checked');
+  const ordem = marcado && marcado.value === 'sim' ? ['1', 'motivo'] : ['1', '2', '3', '4'];
+  const idx = Math.max(0, ordem.indexOf(id));
+  const back = document.getElementById('qBack');
+  const prog = document.getElementById('qProgress');
+  if (back) back.hidden = idx === 0;
+  if (prog) prog.textContent = `Pergunta ${idx + 1} de ${ordem.length}`;
+}
+
+function questaoVoltar() {
+  const wizard = document.getElementById('qWizard');
+  const atual = (wizard && wizard.dataset.atual) || '1';
+  const marcado = document.querySelector('input[name="avalObrigInterrompido"]:checked');
+  const ordem = marcado && marcado.value === 'sim' ? ['1', 'motivo'] : ['1', '2', '3', '4'];
+  const idx = ordem.indexOf(atual);
+  if (idx > 0) questaoIr(ordem[idx - 1]);
+}
+
+async function concluirProcesso(globalIdx) {
+  const row = State.filteredData[globalIdx];
+  if (!row) return;
+  const d = row._avaliacao_obrig_dados;
+  const completo = d && d.contrato_interrompido === 'nao' && d.categoria && d.valor_adjudicacao && d.contrato_assinado;
+  if (!completo) {
+    showToast('Responda todas as perguntas antes de concluir.', 'error', 4000);
+    return;
+  }
+  if (!window.confirm('Concluir este processo?\n\nEle sai da avaliação obrigatória e passa para Concluído.')) return;
+
+  row._concluido = true;
+  row._concluido_em = new Date().toISOString();
+  _persistRow(row);
+
+  if (window.Ciclos && Ciclos.ativo() && row._uid) {
+    try {
+      await _sincronizarCiclo(row);
+      let st = Ciclos.statusDe(row._uid);
+      if (st !== 'VALIDADO' && st !== 'FINALIZADO') {
+        await Ciclos.transicionar(row._uid, 'VALIDADO');
+        st = Ciclos.statusDe(row._uid);
+      }
+      if (st === 'VALIDADO') {
+        await Ciclos.finalizarRegistroFluxo(row._uid, {
+          abrirPdf: false,
+          mensagem: 'Concluindo processo…',
+          mensagemOk: 'Processo concluído. Ele saiu da avaliação obrigatória.',
+        });
+        return;
+      }
+    } catch (e) {
+      console.error('[Concluir]', e.message || e);
+    }
+  }
+
+  if (typeof closeModal === 'function') closeModal();
+  _updateAllStats();
+  applyFilters();
+  showToast('Processo concluído. Ele saiu da avaliação obrigatória.', 'success', 5000);
+}
+
+function desfazerConclusao(globalIdx) {
+  const row = State.filteredData[globalIdx];
+  if (!row) return;
+  if (window.Ciclos && Ciclos.ativo() && row._uid && Ciclos.statusDe(row._uid) === 'FINALIZADO') {
+    showToast('Este processo já entrou no histórico e não pode voltar.', 'info', 4000);
+    return;
+  }
+  delete row._concluido;
+  delete row._concluido_em;
+  _persistRow(row);
+  _updateAllStats();
+  applyFilters();
+  const newIdx = State.filteredData.indexOf(row);
+  if (newIdx !== -1) openModal(newIdx);
+  else if (typeof closeModal === 'function') closeModal();
+  showToast('Conclusão desfeita. O processo voltou para a avaliação obrigatória.', 'info', 4000);
+}
+
 function clearAvaliacaoObrigatoria(globalIdx) {
   const row = State.filteredData[globalIdx];
   if (!row) return;
   delete row._avaliacao_obrig_dados;
+  delete row._concluido;
+  delete row._concluido_em;
   _persistRow(row);
   row._interrompido = false;
   _reclassifyRow(row);
