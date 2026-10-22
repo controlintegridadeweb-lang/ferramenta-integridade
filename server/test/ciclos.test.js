@@ -134,6 +134,23 @@ teste('gerar relatório finaliza só os VALIDADO e numera sequencialmente', asyn
   assert.strictEqual(fake._analises.get('a').status, 'FINALIZADO');
 });
 
+teste('relatório com incluirFinalizados reúne os já concluídos', async (p, fake) => {
+  const t = await token(p);
+  await sincronizar(p, t, [{ uid: 'a' }, { uid: 'b' }]);
+  await transicao(p, t, 'a', 'VALIDADO');
+  await req(p, 'POST', '/api/ciclos/relatorios', { body: { uids: ['a'] }, headers: auth(t) });
+  assert.strictEqual(fake._analises.get('a').status, 'FINALIZADO');
+
+  const r = await req(p, 'POST', '/api/ciclos/relatorios', {
+    body: { uids: ['a', 'b'], incluirFinalizados: true, html: '<p>concluidos</p>' },
+    headers: auth(t),
+  });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+  assert.strictEqual(r.json.relatorio.total_registros, 1, 'b não está concluído; só a entra');
+  assert.strictEqual(fake._analises.get('a').status, 'FINALIZADO');
+  assert.strictEqual(fake._analises.get('b').status, 'PENDENTE');
+});
+
 teste('gerar relatório sem nenhum VALIDADO → 409', async (p) => {
   const t = await token(p);
   await sincronizar(p, t, [{ uid: 'a' }]);

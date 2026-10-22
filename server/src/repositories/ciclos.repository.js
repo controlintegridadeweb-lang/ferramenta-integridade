@@ -59,6 +59,45 @@ const ciclosRepository = {
     return data;
   },
 
+  /* Snapshots dos uids pedidos — usado ao incluir concluídos já finalizados. */
+  async snapshotsDe(uids) {
+    if (!uids || !uids.length) return {};
+    const { data, error } = await supabase.from('analises').select('uid, snapshot').in('uid', uids);
+    if (error) throw error;
+    const mapa = {};
+    (data || []).forEach(r => { mapa[r.uid] = r.snapshot || {}; });
+    return mapa;
+  },
+
+  /* Relatório só com processos já concluídos (não há VALIDADO para o RPC). */
+  async criarRelatorioAvulso({ geradoPor, total }) {
+    const ultimo = await this.ultimoRelatorio();
+    const numero = ((ultimo && ultimo.numero) || 0) + 1;
+    const { data, error } = await supabase.from('relatorios').insert({
+      numero,
+      gerado_por: geradoPor || null,
+      total_registros: total,
+    }).select('*').single();
+    if (error) throw error;
+    return data;
+  },
+
+  async vincularRegistros(relatorioId, itens) {
+    if (!itens || !itens.length) return;
+    const rows = itens.map(i => ({
+      relatorio_id: relatorioId,
+      uid: i.uid,
+      snapshot: i.snapshot || {},
+    }));
+    const { error } = await supabase.from('relatorio_registros').insert(rows);
+    if (error) throw error;
+  },
+
+  async atualizarTotal(id, total) {
+    const { error } = await supabase.from('relatorios').update({ total_registros: total }).eq('id', id);
+    if (error) throw error;
+  },
+
   async anexarPdf({ id, pdfPath, pdfUrl }) {
     const { error } = await supabase.rpc('atualizar_pdf_relatorio', {
       p_id: id, p_pdf_path: pdfPath, p_pdf_url: pdfUrl,

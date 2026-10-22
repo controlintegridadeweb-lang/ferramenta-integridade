@@ -41,8 +41,10 @@ router.post('/analises/:uid/transicao', exigirAuth, asyncHandler(async (req, res
 
 /* ── Gerar relatório (encerra ciclo) — recebe o HTML p/ renderizar o PDF ──── */
 router.post('/relatorios', exigirAuth, jsonGrande, asyncHandler(async (req, res) => {
-  const { uids, html } = req.body || {};
-  const rel = await service.gerarRelatorio({ uids, geradoPor: req.ator, html });
+  const { uids, html, incluirFinalizados } = req.body || {};
+  const rel = await service.gerarRelatorio({
+    uids, geradoPor: req.ator, html, incluirFinalizados: !!incluirFinalizados,
+  });
   res.json({ ok: true, relatorio: rel });
 }));
 

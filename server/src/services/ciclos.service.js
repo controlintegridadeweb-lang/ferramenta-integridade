@@ -77,20 +77,56 @@ const ciclosService = {
 
   /* Gera o relatório (lote fechado). O PDF é renderizado no SERVIDOR a partir do
      HTML enviado pelo front (Chrome headless → PDF vetorial), com upload ao
-     Storage. Retorna o relatório completo. */
-  async gerarRelatorio({ uids, geradoPor, html }) {
+     Storage. Retorna o relatório completo.
+     incluirFinalizados: o analista pediu o PDF dos já concluídos. Eles entram
+     no relatório sem reabrir o ciclo (FINALIZADO continua terminal). */
+  async gerarRelatorio({ uids, geradoPor, html, incluirFinalizados }) {
     exigirPersistencia();
     if (!Array.isArray(uids) || uids.length === 0) throw erro('Informe os registros do relatório.', 400);
 
-    let rel;
-    try {
-      rel = await repo.gerarRelatorio({ uids, geradoPor });
-    } catch (e) {
-      const msg = e.pgMessage || e.message || '';
-      if (/sem_registros_validados/.test(msg)) {
-        throw erro('Nenhum dos registros está VALIDADO. Valide antes de gerar o relatório.', 409);
+    const mapa = await repo.listarAnalises();
+    const validado = [];
+    const finalizado = [];
+    for (const uid of uids) {
+      const a = mapa[uid];
+      if (!a) continue;
+      if (a.status === 'VALIDADO') validado.push(uid);
+      else if (a.status === 'FINALIZADO' && incluirFinalizados) finalizado.push(uid);
+    }
+
+    if (validado.length === 0 && finalizado.length === 0) {
+      throw erro(
+        incluirFinalizados
+          ? 'Nenhum processo concluído para incluir no relatório.'
+          : 'Nenhum dos registros está VALIDADO. Valide antes de gerar o relatório.',
+        409
+      );
+    }
+
+    let rel = null;
+    if (validado.length) {
+      try {
+        rel = await repo.gerarRelatorio({ uids: validado, geradoPor });
+      } catch (e) {
+        const msg = e.pgMessage || e.message || '';
+        if (/sem_registros_validados/.test(msg)) {
+          throw erro('Nenhum dos registros está VALIDADO. Valide antes de gerar o relatório.', 409);
+        }
+        throw e;
       }
-      throw e;
+    }
+
+    if (finalizado.length) {
+      const snaps = await repo.snapshotsDe(finalizado);
+      const itens = finalizado.map(uid => ({ uid, snapshot: snaps[uid] || {} }));
+      if (!rel) {
+        rel = await repo.criarRelatorioAvulso({ geradoPor, total: finalizado.length });
+        await repo.vincularRegistros(rel.id, itens);
+      } else {
+        await repo.vincularRegistros(rel.id, itens);
+        rel.total_registros = validado.length + finalizado.length;
+        await repo.atualizarTotal(rel.id, rel.total_registros);
+      }
     }
 
     await this._renderizarEAnexarPdf(rel, html);

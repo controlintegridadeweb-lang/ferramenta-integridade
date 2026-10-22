@@ -16,7 +16,10 @@ function criarFakeCiclos() {
 
   function aplicarFiltros(rows, filtros) {
     let r = rows;
-    for (const f of filtros) r = r.filter(row => row[f.col] === f.val);
+    for (const f of filtros) {
+      if (f.op === 'in') r = r.filter(row => f.val.includes(row[f.col]));
+      else r = r.filter(row => row[f.col] === f.val);
+    }
     return r;
   }
 
@@ -26,6 +29,34 @@ function criarFakeCiclos() {
     const builder = {
       select() { return builder; },
       eq(col, val) { estado.filtros.push({ col, val }); return builder; },
+      in(col, vals) { estado.filtros.push({ col, val: vals, op: 'in' }); return builder; },
+      insert(payload) {
+        const rows = Array.isArray(payload) ? payload : [payload];
+        const criados = [];
+        if (tabela === 'relatorios') {
+          rows.forEach(row => {
+            const rel = {
+              id: ++_relId,
+              numero: row.numero,
+              gerado_por: row.gerado_por || null,
+              gerado_em: new Date().toISOString(),
+              total_registros: row.total_registros || 0,
+              pdf_path: null,
+              pdf_url: null,
+            };
+            relatorios.push(rel);
+            criados.push({ ...rel });
+          });
+        } else if (tabela === 'relatorio_registros') {
+          rows.forEach(row => {
+            vinculos.push({ ...row });
+            criados.push({ ...row });
+          });
+        }
+        estado._inserted = criados;
+        return builder;
+      },
+      update(payload) { estado._update = payload; return builder; },
       order(col, opts) { estado.ordem = { col, asc: opts ? opts.ascending : true }; return builder; },
       limit(n) { estado._limit = n; return builder; },
       single() { estado._single = true; return builder; },
@@ -35,6 +66,17 @@ function criarFakeCiclos() {
       },
       then(resolve, reject) {   // torna o builder "awaitable" sem .range()
         try {
+          if (estado._update && tabela === 'relatorios') {
+            const alvos = aplicarFiltros(relatorios, estado.filtros);
+            alvos.forEach(r => Object.assign(r, estado._update));
+            resolve({ data: null, error: null });
+            return;
+          }
+          if (estado._inserted) {
+            const data = estado._single ? (estado._inserted[0] || null) : estado._inserted;
+            resolve({ data, error: null });
+            return;
+          }
           let data = resolver();
           if (estado._single) data = data[0] || null;
           resolve({ data, error: null });

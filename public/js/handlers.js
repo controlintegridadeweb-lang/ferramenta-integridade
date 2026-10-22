@@ -882,16 +882,8 @@ async function concluirProcesso(globalIdx) {
       let st = Ciclos.statusDe(row._uid);
       if (st !== 'VALIDADO' && st !== 'FINALIZADO') {
         await Ciclos.transicionar(row._uid, 'VALIDADO');
-        st = Ciclos.statusDe(row._uid);
       }
-      if (st === 'VALIDADO') {
-        await Ciclos.finalizarRegistroFluxo(row._uid, {
-          abrirPdf: false,
-          mensagem: 'Concluindo processo…',
-          mensagemOk: 'Processo concluído. Ele saiu da avaliação obrigatória.',
-        });
-        return;
-      }
+      if (typeof Ciclos.renderDashboard === 'function') Ciclos.renderDashboard();
     } catch (e) {
       console.error('[Concluir]', e.message || e);
     }
@@ -900,7 +892,7 @@ async function concluirProcesso(globalIdx) {
   if (typeof closeModal === 'function') closeModal();
   _updateAllStats();
   applyFilters();
-  showToast('Processo concluído. Ele saiu da avaliação obrigatória.', 'success', 5000);
+  showToast('Processo concluído. Ele entra no próximo relatório.', 'success', 5000);
 }
 
 function desfazerConclusao(globalIdx) {

@@ -87,9 +87,11 @@ const Ciclos = (() => {
   }
 
   /* ── Geração de relatório: envia uids + HTML; o servidor renderiza o PDF ─── */
-  async function gerarRelatorio(uids, html) {
+  async function gerarRelatorio(uids, html, opts) {
     if (!_ativo) throw new Error('Persistência indisponível.');
-    const r = await _post('/api/ciclos/relatorios', { uids, html });
+    const body = { uids, html };
+    if (opts && opts.incluirFinalizados) body.incluirFinalizados = true;
+    const r = await _post('/api/ciclos/relatorios', body);
     await atualizarStatus();
     return r.relatorio;
   }
@@ -186,10 +188,11 @@ const Ciclos = (() => {
     set('cicloEmAnalise', alinhado.emAnalise);
     set('cicloValidados', alinhado.validados);
     set('cicloFinalizados', d.finalizados);
-    set('btnGerarCount', `${alinhado.validados} validados`);
+    const paraRelatorio = _linhasParaRelatorio().length;
+    set('btnGerarCount', `${paraRelatorio} concluídos`);
 
     const btn = document.getElementById('btnGerarRelatorio');
-    if (btn) btn.disabled = alinhado.validados === 0;
+    if (btn) btn.disabled = paraRelatorio === 0;
 
     if (d.ultimoRelatorio) {
       const r = d.ultimoRelatorio;
@@ -200,6 +203,17 @@ const Ciclos = (() => {
       set('cicloUltimoNum', '—');
       set('cicloUltimoInfo', 'nenhum gerado ainda');
     }
+  }
+
+  /* Processos que entram no PDF: já concluídos e os que ainda estão validados. */
+  function _linhasParaRelatorio() {
+    const data = (typeof State !== 'undefined' && State.allData) ? State.allData : [];
+    return data.filter(r => {
+      if (!r || !r._uid) return false;
+      const st = _statusCache[r._uid] && _statusCache[r._uid].status;
+      if (st === 'VALIDADO' || st === 'FINALIZADO') return true;
+      return typeof registroConcluido === 'function' && registroConcluido(r);
+    });
   }
 
   /** Recalcula pendentes/em análise/validados cruzando banco × classificação atual. */
@@ -229,30 +243,37 @@ const Ciclos = (() => {
     if (!_ativo) { _toast('Persistência indisponível.', 'error'); return; }
 
     await atualizarStatus();
-    const validados = Object.values(_statusCache).filter(a => a.status === 'VALIDADO').map(a => a.uid);
-    if (validados.length === 0) {
-      _toast('Nenhum registro validado para incluir no relatório.', 'info', 5000);
+    let linhas = _linhasParaRelatorio();
+    if (linhas.length === 0) {
+      _toast('Nenhum processo concluído para incluir no relatório.', 'info', 5000);
       return;
     }
 
     const ok = await pedirConfirmacao({
-      titulo: `Gerar o relatório com ${validados.length} registro(s)?`,
-      texto: 'Isso encerra o ciclo: eles passam a concluído e saem da fila de análise.',
+      titulo: `Gerar o relatório com ${linhas.length} processo(s) concluído(s)?`,
+      texto: 'O PDF reúne os processos já concluídos.',
       ok: 'Gerar relatório',
       cancelar: 'Voltar',
     });
     if (!ok) return;
 
-    const setVal = new Set(validados);
-    const linhas = (State.allData || []).filter(r => setVal.has(r._uid));
-
     if (typeof showLoading === 'function') showLoading('Gerando relatório PDF…');
     try {
+      await sincronizar(linhas);
+      await atualizarStatus();
+      for (const row of linhas) {
+        const st = statusDe(row._uid);
+        if (st && st !== 'VALIDADO' && st !== 'FINALIZADO') {
+          await transicionar(row._uid, 'VALIDADO');
+        }
+      }
+      await atualizarStatus();
+      linhas = _linhasParaRelatorio();
       const html = _montarHtmlRelatorio(linhas);
-      const rel = await gerarRelatorio(validados, html);
+      const rel = await gerarRelatorio(linhas.map(r => r._uid), html, { incluirFinalizados: true });
       if (typeof hideLoading === 'function') hideLoading();
 
-      _toast(`Relatório #${String(rel.numero).padStart(3, '0')} gerado com ${rel.total_registros} registro(s). Ciclo encerrado.`, 'success', 7000);
+      _toast(`Relatório #${String(rel.numero).padStart(3, '0')} gerado com ${rel.total_registros} processo(s).`, 'success', 7000);
       if (rel._avisoPdf) _toast(rel._avisoPdf, 'error', 9000);
 
       // Atualiza painel e tabela (finalizados saem da fila).
