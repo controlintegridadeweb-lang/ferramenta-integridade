@@ -205,14 +205,16 @@ const Ciclos = (() => {
     }
   }
 
-  /* Processos que entram no PDF: já concluídos e os que ainda estão validados. */
+  /* Só a rodada aberta: concluídos que ainda não entraram num relatório.
+     FINALIZADO já saiu e não volta. */
   function _linhasParaRelatorio() {
     const data = (typeof State !== 'undefined' && State.allData) ? State.allData : [];
     return data.filter(r => {
       if (!r || !r._uid) return false;
       const st = _statusCache[r._uid] && _statusCache[r._uid].status;
-      if (st === 'VALIDADO' || st === 'FINALIZADO') return true;
-      return typeof registroConcluido === 'function' && registroConcluido(r);
+      if (st === 'FINALIZADO') return false;
+      if (st === 'VALIDADO') return true;
+      return !!r._concluido;
     });
   }
 
@@ -251,7 +253,7 @@ const Ciclos = (() => {
 
     const ok = await pedirConfirmacao({
       titulo: `Gerar o relatório com ${linhas.length} processo(s) concluído(s)?`,
-      texto: 'O PDF reúne os processos já concluídos.',
+      texto: 'Fecha esta rodada. Esses processos saem e só entram outros quando houver novas conclusões.',
       ok: 'Gerar relatório',
       cancelar: 'Voltar',
     });
@@ -270,7 +272,7 @@ const Ciclos = (() => {
       await atualizarStatus();
       linhas = _linhasParaRelatorio();
       const html = _montarHtmlRelatorio(linhas);
-      const rel = await gerarRelatorio(linhas.map(r => r._uid), html, { incluirFinalizados: true });
+      const rel = await gerarRelatorio(linhas.map(r => r._uid), html);
       if (typeof hideLoading === 'function') hideLoading();
 
       _toast(`Relatório #${String(rel.numero).padStart(3, '0')} gerado com ${rel.total_registros} processo(s).`, 'success', 7000);

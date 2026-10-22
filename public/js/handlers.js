@@ -140,8 +140,9 @@ function _persistRow(row) {
  * Regra de derivação do estado-alvo, a partir do registro já reclassificado:
  *   - não é mais obrigatório (saiu de escopo, interrompido, etc.) → PENDENTE
  *     (sai da contagem de "em análise/validado"; se reentrar, recomeça limpo)
- *   - obrigatório COM questionário completo                       → VALIDADO
- *   - obrigatório SEM questionário, modal aberto                  → EM_ANALISE
+ *   - obrigatório já concluído pelo analista                       → VALIDADO
+ *     (entra na rodada; o relatório só sai quando o analista gera)
+ *   - obrigatório SEM conclusão, modal aberto                     → EM_ANALISE
  *
  * Só transiciona quando o estado-alvo difere do atual, e nunca mexe em
  * registros já FINALIZADOS (o back-end também bloqueia, mas evitamos o request).
@@ -158,7 +159,7 @@ async function _sincronizarCiclo(row, opts) {
   if (atual === 'FINALIZADO') return;   // terminal: nada a fazer
 
   const obrigatorio = row._statusFinal === 'avaliacao-obrigatoria';
-  const questionarioCompleto = questionarioRespondido(row._avaliacao_obrig_dados);
+  const concluido = !!row._concluido;
 
   let alvo;
   if (!obrigatorio) {
@@ -168,8 +169,11 @@ async function _sincronizarCiclo(row, opts) {
     // EM_ANALISE recua para PENDENTE. Em chamadas seguintes converge a PENDENTE.
     if (atual === 'VALIDADO')      alvo = 'EM_ANALISE';
     else                            alvo = 'PENDENTE';
-  } else if (questionarioCompleto) {
+  } else if (concluido) {
     alvo = 'VALIDADO';
+  } else if (atual === 'VALIDADO') {
+    // Respondeu o questionário, mas ainda não concluiu: não entra na rodada.
+    alvo = 'EM_ANALISE';
   } else if (opts && opts.abrindo) {
     alvo = 'EM_ANALISE';
   } else {
@@ -895,7 +899,7 @@ async function concluirProcesso(globalIdx) {
   showToast('Processo concluído. Ele entra no próximo relatório.', 'success', 5000);
 }
 
-function desfazerConclusao(globalIdx) {
+async function desfazerConclusao(globalIdx) {
   const row = State.filteredData[globalIdx];
   if (!row) return;
   if (window.Ciclos && Ciclos.ativo() && row._uid && Ciclos.statusDe(row._uid) === 'FINALIZADO') {
@@ -905,6 +909,7 @@ function desfazerConclusao(globalIdx) {
   delete row._concluido;
   delete row._concluido_em;
   _persistRow(row);
+  await _sincronizarCiclo(row);
   _updateAllStats();
   applyFilters();
   const newIdx = State.filteredData.indexOf(row);

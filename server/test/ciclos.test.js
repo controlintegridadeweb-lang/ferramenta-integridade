@@ -134,7 +134,7 @@ teste('gerar relatório finaliza só os VALIDADO e numera sequencialmente', asyn
   assert.strictEqual(fake._analises.get('a').status, 'FINALIZADO');
 });
 
-teste('relatório com incluirFinalizados reúne os já concluídos', async (p, fake) => {
+teste('processo já finalizado não entra em outro relatório', async (p, fake) => {
   const t = await token(p);
   await sincronizar(p, t, [{ uid: 'a' }, { uid: 'b' }]);
   await transicao(p, t, 'a', 'VALIDADO');
@@ -145,10 +145,10 @@ teste('relatório com incluirFinalizados reúne os já concluídos', async (p, f
     body: { uids: ['a', 'b'], incluirFinalizados: true, html: '<p>concluidos</p>' },
     headers: auth(t),
   });
-  assert.strictEqual(r.status, 200, JSON.stringify(r.json));
-  assert.strictEqual(r.json.relatorio.total_registros, 1, 'b não está concluído; só a entra');
+  assert.strictEqual(r.status, 409);
   assert.strictEqual(fake._analises.get('a').status, 'FINALIZADO');
   assert.strictEqual(fake._analises.get('b').status, 'PENDENTE');
+  assert.strictEqual(fake._relatorios.length, 1);
 });
 
 teste('gerar relatório sem nenhum VALIDADO → 409', async (p) => {
