@@ -114,7 +114,7 @@ function _buildPdfHtml(data, dataHoje) {
 
   /* ── fichas de processos ── */
   let fichas = '';
-  data.forEach((r, idx) => {
+  data.forEach((r) => {
     const valorEfetivo = r._valor_manual > 0 ? r._valor_manual : (r.valor_estimado || 0);
     const ao = _pdf_avalObrigLabel(r);
     const interrompido = ao && ao.interrompido === 'Sim';
@@ -123,7 +123,6 @@ function _buildPdfHtml(data, dataHoje) {
     <div class="process-card">
 
       <div class="process-header">
-        <span class="proc-index">${idx + 1}</span>
         <div class="proc-id">
           <span class="proc-nup">${_pdf_esc(r.processo || r.numero_ano_edital || 'Processo sem número')}</span>
           <span class="proc-org">${_pdf_esc(r.nome_Uasg || 'Órgão não informado')}</span>
@@ -373,17 +372,6 @@ function _buildPdfHtml(data, dataHoje) {
       display: flex;
       align-items: center;
       gap: 12px;
-    }
-    .proc-index {
-      width: 28px; height: 28px;
-      background: #ffffff;
-      border: 1px solid #ffffff;
-      border-radius: 4px;
-      font-size: 10pt;
-      font-weight: 800;
-      color: #0a6b63;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
     }
     .proc-id {
       display: flex;
