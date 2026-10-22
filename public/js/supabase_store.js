@@ -62,7 +62,7 @@ const Supa = (() => {
      ───────────────────────────────────────────────────────────────────────── */
   async function init() {
     try {
-      const resp = await fetch('/api/health');
+      const resp = await fetch(apiUrl('/api/health'));
       if (!resp.ok) throw new Error('health falhou');
       const j = await resp.json();
       _ready = !!j.persistencia;
@@ -112,7 +112,7 @@ const Supa = (() => {
   async function carregarTodas() {
     if (!_ready) return {};
     try {
-      const resp = await fetch('/api/anotacoes', { headers: await _authHeaders() });
+      const resp = await fetch(apiUrl('/api/anotacoes'), { headers: await _authHeaders() });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const j = await resp.json();   // { uid: dados, ..., _versoes: {...} }
       if (j && typeof j === 'object') delete j._versoes;  // metadado, não é anotação
@@ -165,9 +165,9 @@ const Supa = (() => {
 
       const fazer = async () => {
         if (vazio) {
-          return fetch(`/api/anotacoes/${uid}`, { method: 'DELETE', headers: await _authHeaders() });
+          return fetch(apiUrl(`/api/anotacoes/${uid}`), { method: 'DELETE', headers: await _authHeaders() });
         }
-        return fetch(`/api/anotacoes/${uid}`, {
+        return fetch(apiUrl(`/api/anotacoes/${uid}`), {
           method:  'PUT',
           headers: await _authHeaders({ 'Content-Type': 'application/json' }),
           body:    JSON.stringify({ dados }),

@@ -64,7 +64,7 @@ async function init() {
   // Nenhuma credencial vem para o navegador — apenas flags do que está ativo.
   let saude = { persistencia: false, sheets: false, autoRefreshSeg: 0 };
   try {
-    const resp = await fetch('/api/health');
+    const resp = await fetch(apiUrl('/api/health'));
     if (resp.ok) saude = await resp.json();
   } catch (_) { /* back-end fora do ar: app segue só com upload manual */ }
 

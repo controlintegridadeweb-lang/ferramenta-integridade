@@ -18,7 +18,7 @@ const Sheets = (() => {
   async function carregar({ silencioso = false } = {}) {
     if (!silencioso) showLoading();
     try {
-      const resp = await fetch('/api/sheets');
+      const resp = await fetch(apiUrl('/api/sheets'));
       if (!resp.ok) {
         let msg = `Não foi possível ler a planilha (HTTP ${resp.status}).`;
         try { const j = await resp.json(); if (j && j.erro) msg = j.erro; } catch (_) {}

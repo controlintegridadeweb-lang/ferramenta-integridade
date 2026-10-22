@@ -35,7 +35,7 @@ const AuthUI = (() => {
   }
 
   async function _carregarSaude() {
-    const resp = await fetch('/api/health');
+    const resp = await fetch(apiUrl('/api/health'));
     if (!resp.ok) throw new Error('Não foi possível verificar o servidor.');
     return resp.json();
   }

@@ -37,7 +37,7 @@ const Auth = (() => {
 
   /* ── Descoberta de configuração ──────────────────────────────────────────── */
   async function _carregarConfig() {
-    const resp = await fetch('/api/health');
+    const resp = await fetch(apiUrl('/api/health'));
     if (!resp.ok) throw new Error('health falhou');
     return resp.json();
   }
@@ -147,7 +147,7 @@ const Auth = (() => {
       return usuarioAtual();
     }
     // Modo legado: o token vem do back-end e fica só aqui.
-    const resp = await fetch('/api/auth/login', {
+    const resp = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario, senha }),

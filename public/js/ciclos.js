@@ -113,21 +113,21 @@ const Ciclos = (() => {
 
   /* ── HTTP helpers (com auth do Supa, quando exigida) ─────────────────────── */
   async function _get(url) {
-    const resp = await fetch(url, { headers: await _authHeaders() });
+    const resp = await fetch(apiUrl(url), { headers: await _authHeaders() });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json();
   }
 
   async function _post(url, body) {
-    let resp = await fetch(url, { method: 'POST', headers: await _authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+    let resp = await fetch(apiUrl(url), { method: 'POST', headers: await _authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
     if (resp.status === 401 && window.Auth && Auth.precisaAuth && Auth.precisaAuth()) {
       const renovado = await Auth.renovarSessao();
       if (!renovado) {
         Auth.invalidarToken();
         const ok = await Auth.garantirLogin();
-        if (ok) resp = await fetch(url, { method: 'POST', headers: await _authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+        if (ok) resp = await fetch(apiUrl(url), { method: 'POST', headers: await _authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       } else {
-        resp = await fetch(url, { method: 'POST', headers: await _authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+        resp = await fetch(apiUrl(url), { method: 'POST', headers: await _authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       }
     }
     if (!resp.ok) {
