@@ -96,13 +96,6 @@ function _pdf_esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-/* ─── Inline SVG helpers (usados apenas no cabeçalho) ────────────────────── */
-
-const _SVG = {
-  shieldWhite:`<svg width="22" height="22" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 6v5c0 5.25 3.4 10.15 8 11.35C16.6 21.15 20 16.25 20 11V6L12 2z"/><polyline points="9 12 11 14 15 10" fill="none" stroke="#0f9387" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-};
-
-
 /* ═══════════════════════════════════════════════════════════════════════════
    BUILDER DE HTML
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -141,26 +134,26 @@ function _buildPdfHtml(data, dataHoje) {
 
   // ── Mapa de cor do badge por status ──────────────────────────────────────
   const STATUS_PDF_BADGE_BG = {
-    'avaliacao-obrigatoria': 'rgba(220,38,38,.25)',
-    'verificacao-humana':    'rgba(217,119,6,.25)',
-    'dispensada':            'rgba(5,150,105,.25)',
-    'nao-enquadrado':        'rgba(100,116,139,.25)',
-    'nao-enquadrado-art1':   'rgba(67,56,202,.25)',
+    'avaliacao-obrigatoria': '#ffffff',
+    'verificacao-humana':    '#ffffff',
+    'dispensada':            '#ffffff',
+    'nao-enquadrado':        '#ffffff',
+    'nao-enquadrado-art1':   '#ffffff',
   };
   const STATUS_PDF_BADGE_COLOR = {
-    'avaliacao-obrigatoria': '#fca5a5',
-    'verificacao-humana':    '#fde68a',
-    'dispensada':            '#6ee7b7',
-    'nao-enquadrado':        '#cbd5e1',
-    'nao-enquadrado-art1':   '#8cc6b3',
+    'avaliacao-obrigatoria': '#9f1239',
+    'verificacao-humana':    '#9a3412',
+    'dispensada':            '#065f46',
+    'nao-enquadrado':        '#334155',
+    'nao-enquadrado-art1':   '#1e3a8a',
   };
 
   let fichas = '';
   data.forEach((r, idx) => {
     const valorEfetivo = r._valor_manual > 0 ? r._valor_manual : (r.valor_estimado || 0);
     const statusLabel  = STATUS_PDF_LABEL[r._statusFinal] || (r._statusFinal || '').toUpperCase();
-    const badgeBg      = STATUS_PDF_BADGE_BG[r._statusFinal] || 'rgba(100,116,139,.25)';
-    const badgeColor   = STATUS_PDF_BADGE_COLOR[r._statusFinal] || '#cbd5e1';
+    const badgeBg      = STATUS_PDF_BADGE_BG[r._statusFinal] || '#ffffff';
+    const badgeColor   = STATUS_PDF_BADGE_COLOR[r._statusFinal] || '#334155';
 
     fichas += `
     <div class="process-card">
@@ -169,7 +162,7 @@ function _buildPdfHtml(data, dataHoje) {
       <div class="process-header">
         <div class="proc-num-wrap">
           <span class="proc-index">${idx + 1}</span>
-          <span class="proc-badge" style="background:${badgeBg};color:${badgeColor};border-color:${badgeColor}40">${statusLabel}</span>
+          <span class="proc-badge" style="background:${badgeBg};color:${badgeColor};border-color:${badgeBg}">${statusLabel}</span>
         </div>
         <span class="proc-edital">${_pdf_esc(r.numero_ano_edital || r.processo || 'Nº não informado')}</span>
       </div>
@@ -270,81 +263,70 @@ function _buildPdfHtml(data, dataHoje) {
       overflow: hidden;
       margin: 0;
       padding: 0;
-      position: relative;
-      background: linear-gradient(150deg, #0a6b63 0%, #0f9387 45%, #8cc6b3 85%, #e39361 100%);
+      background: #ffffff;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
     }
-    /* Ornamento de fundo */
-    .cover-page::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(circle at 80% 20%, rgba(140,198,179,0.22) 0%, transparent 55%),
-        radial-gradient(circle at 15% 80%, rgba(227,147,97,0.2) 0%, transparent 45%);
-      pointer-events: none;
-    }
-    .cover-emblem {
-      margin-bottom: 28px;
-      z-index: 1;
-    }
-    .cover-shield {
-      width: 88px;
-      height: 104px;
-      filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+    .cover-band {
+      height: 18px;
+      background: #0a6b63;
+      flex-shrink: 0;
     }
     .cover-content {
-      text-align: center;
-      z-index: 1;
-      padding: 0 40px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 56px 72px 40px;
     }
-    .cover-badge {
-      font-size: 8pt;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: rgba(140,198,179,0.95);
-      margin-bottom: 20px;
-    }
-    .cover-title {
-      font-size: 30pt;
-      font-weight: 900;
-      color: #ffffff;
-      line-height: 1.15;
-      margin-bottom: 18px;
-      text-shadow: 0 2px 12px rgba(0,0,0,0.3);
-    }
-    .cover-subtitle {
+    .cover-org {
       font-size: 11pt;
-      color: rgba(232,246,243,0.92);
-      line-height: 1.6;
-      margin-bottom: 32px;
-    }
-    .cover-meta {
-      font-size: 9pt;
-      color: rgba(255,255,255,0.7);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #0a6b63;
       margin-bottom: 6px;
     }
-    .cover-meta strong { color: #ffffff; }
+    .cover-org-name {
+      font-size: 13pt;
+      color: #1f2937;
+      margin-bottom: 40px;
+    }
+    .cover-title {
+      font-size: 28pt;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.2;
+      max-width: 14em;
+      margin-bottom: 18px;
+    }
+    .cover-rule {
+      width: 64px;
+      height: 4px;
+      background: #0a6b63;
+      margin-bottom: 22px;
+    }
+    .cover-subtitle {
+      font-size: 12pt;
+      color: #374151;
+      line-height: 1.5;
+    }
+    .cover-meta {
+      margin-top: 36px;
+      font-size: 11pt;
+      color: #111827;
+    }
     .cover-decree {
-      font-size: 8pt;
-      color: rgba(140,198,179,0.75);
+      margin-top: 4px;
+      font-size: 10pt;
+      color: #374151;
     }
     .cover-footer-bar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0,0,0,0.3);
-      color: rgba(255,255,255,0.6);
-      font-size: 7.5pt;
-      text-align: center;
-      padding: 10px;
-      letter-spacing: 0.5px;
-      z-index: 1;
+      background: #0a6b63;
+      color: #ffffff;
+      font-size: 9pt;
+      text-align: left;
+      padding: 14px 72px;
     }
 
     /* ══ Wrapper de página de conteúdo ══════════════════════════════════════ */
@@ -368,13 +350,6 @@ function _buildPdfHtml(data, dataHoje) {
       display: flex;
       align-items: center;
       gap: 10px;
-    }
-    .ph-brand-icon {
-      width: 36px; height: 36px;
-      background: #0f9387;
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
     }
     .ph-brand-text {
       display: flex;
@@ -443,12 +418,12 @@ function _buildPdfHtml(data, dataHoje) {
     }
     .proc-index {
       width: 28px; height: 28px;
-      background: rgba(255,255,255,.15);
-      border: 1px solid rgba(255,255,255,.3);
-      border-radius: 6px;
+      background: #ffffff;
+      border: 1px solid #ffffff;
+      border-radius: 4px;
       font-size: 10pt;
       font-weight: 800;
-      color: #fff;
+      color: #0a6b63;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
@@ -457,15 +432,15 @@ function _buildPdfHtml(data, dataHoje) {
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: #fca5a5;
-      background: rgba(220,38,38,.25);
-      border: 1px solid rgba(248,113,113,.35);
-      border-radius: 20px;
+      color: #9f1239;
+      background: #ffffff;
+      border: 1px solid #ffffff;
+      border-radius: 4px;
       padding: 2px 8px;
     }
     .proc-edital {
       font-size: 9pt;
-      color: #93c5fd;
+      color: #ffffff;
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
@@ -513,16 +488,6 @@ function _buildPdfHtml(data, dataHoje) {
       text-transform: uppercase;
       letter-spacing: .4px;
     }
-    .sec-icon {
-      display: flex;
-      align-items: center;
-      flex-shrink: 0;
-      color: #8cc6b3;
-    }
-    .sec-icon svg {
-      display: block;
-    }
-
     /* ══ Rodapé de página ═══════════════════════════════════════════════════ */
     .page-footer {
       margin-top: 40px;
@@ -557,19 +522,17 @@ function _buildPdfHtml(data, dataHoje) {
      CAPA DO RELATÓRIO
      ══════════════════════════════════════════════════════════════════════════ -->
 <div class="cover-page">
-  <div class="cover-emblem">
-    <svg class="cover-shield" viewBox="0 0 64 76" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M32 2L4 14v22c0 22 12.5 36.5 28 42 15.5-5.5 28-20 28-42V14L32 2z" fill="#0f9387" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-      <path d="M32 8L8 18v18c0 18 10 30 24 35 14-5 24-17 24-35V18L32 8z" fill="#8cc6b3" opacity="0.35"/>
-      <polyline points="22 36 28 42 42 30" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </div>
+  <div class="cover-band"></div>
   <div class="cover-content">
-    <div class="cover-badge">CGE/RN — CONTROLADORIA-GERAL DO ESTADO</div>
-    <h1 class="cover-title">Relatório de<br>Avaliação de<br>Integridade</h1>
-    <p class="cover-subtitle">Processos com Avaliação de Integridade Obrigatória<br>Art. 2º da IN-SEI N° 21/2024</p>
-    <div class="cover-meta">Gerado em: <strong>${dataHoje}</strong></div>
-    <div class="cover-decree">Decreto N° 34.196/2024 &nbsp;·&nbsp; IN-SEI N° 21/2024</div>
+    <p class="cover-org">CGE/RN</p>
+    <p class="cover-org-name">Controladoria-Geral do Estado</p>
+    <h1 class="cover-title">Relatório de Avaliação de Integridade</h1>
+    <div class="cover-rule"></div>
+    <p class="cover-subtitle">Processos com Avaliação de Integridade Obrigatória</p>
+    <p class="cover-subtitle">Art. 2º da IN-SEI N° 21/2024</p>
+    <p class="cover-meta">Gerado em ${dataHoje}</p>
+    <p class="cover-decree">Decreto N° 34.196/2024</p>
+    <p class="cover-decree">IN-SEI N° 21/2024</p>
   </div>
   <div class="cover-footer-bar">Filtro de Conformidade — Ferramenta de Avaliação de Integridade</div>
 </div>
@@ -583,7 +546,6 @@ function _buildPdfHtml(data, dataHoje) {
   <!-- Cabeçalho interno -->
   <div class="page-header">
     <div class="ph-brand">
-      <div class="ph-brand-icon">${_SVG.shieldWhite}</div>
       <div class="ph-brand-text">
         <span class="ph-brand-title">Filtro de Conformidade</span>
         <span class="ph-brand-sub">Avaliação de Integridade — CGE/RN</span>
