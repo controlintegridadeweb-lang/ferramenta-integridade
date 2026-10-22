@@ -22,8 +22,8 @@ function applyFilters() {
   State.filteredData = State.allData.filter(row => {
 
     // ── Regra de ciclo: registros FINALIZADOS saem da fila de trabalho ────
-    // Finalizados pertencem só ao histórico/auditoria, nunca reaparecem aqui.
-    if (window.Ciclos && Ciclos.ativo()) {
+    // Uma busca explícita ainda encontra o processo, senão o número parece inexistente.
+    if (!search && window.Ciclos && Ciclos.ativo()) {
       if (Ciclos.statusDe(row._uid) === 'FINALIZADO') return false;
     }
 
@@ -48,12 +48,18 @@ function applyFilters() {
     if (statusVal && row._statusFinal !== statusVal) return false;
 
     // ── Busca textual (edital, UASG, objeto, processo, modalidade, código) ─
+    // Números de processo vêm como 00110033.000251/2025-71. A busca sem o ponto
+    // (00110033000251/2025-71) também precisa encontrar o mesmo registro.
     if (search) {
       const hay = [
         row.numero_ano_edital, row.nome_Uasg, row.objeto,
         row.processo, row.modalidade, row.codigoUasg,
       ].join(' ').toLowerCase();
-      if (!hay.includes(search)) return false;
+      const compact = s => String(s || '').replace(/[^a-z0-9]/g, '');
+      const buscaCompacta = compact(search);
+      const achouTexto = hay.includes(search);
+      const achouNumero = buscaCompacta.length >= 4 && compact(hay).includes(buscaCompacta);
+      if (!achouTexto && !achouNumero) return false;
     }
 
     // ── Filtros de dropdown ───────────────────────────────────────────────
